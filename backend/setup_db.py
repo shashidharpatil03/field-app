@@ -69,6 +69,10 @@ cursor.execute("""
         name TEXT NOT NULL,
         gender TEXT NOT NULL CHECK (gender IN ('Female', 'Male', 'Other')),
         growing_cotton INTEGER NOT NULL CHECK (growing_cotton IN (0, 1)),
+        mobile TEXT CHECK (
+            mobile IS NULL
+            OR (length(mobile) = 10 AND mobile NOT GLOB '*[^0-9]*')
+        ),
         participation TEXT NOT NULL DEFAULT 'continuing'
             CHECK (participation IN ('continuing', 'dropped_out')),
         UNIQUE (lg_id, farmer_number)
@@ -82,6 +86,7 @@ cursor.execute("""
         name TEXT NOT NULL DEFAULT '',
         gender TEXT NOT NULL DEFAULT '',
         growing_cotton INTEGER,
+        mobile TEXT NOT NULL DEFAULT '',
         updated_at TEXT NOT NULL
     )
 """)

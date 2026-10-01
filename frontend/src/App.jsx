@@ -12,6 +12,7 @@ function App() {
   const [history, setHistory] = useState([]);
   const [farmersFor, setFarmersFor] = useState(null); // NEW
   const [farmers, setFarmers] = useState([]); // NEW
+  const [showDropped, setShowDropped] = useState(false);
   const [profileId, setProfileId] = useState(null);
   const [registerLg, setRegisterLg] = useState(null);
   const [registerDraft, setRegisterDraft] = useState(null);
@@ -56,12 +57,19 @@ function App() {
       setFarmersFor(null);
       return;
     }
-    fetch(`http://localhost:8000/lgs/${lgId}/farmers`)
+    fetch(`http://localhost:8000/lgs/${lgId}/farmers?include_dropped=${showDropped}`)
       .then((response) => response.json())
       .then((data) => {
         setFarmers(data);
         setFarmersFor(lgId);
       });
+  }
+
+  function changeShowDropped(lgId, checked) {
+    setShowDropped(checked);
+    fetch(`http://localhost:8000/lgs/${lgId}/farmers?include_dropped=${checked}`)
+      .then((response) => response.json())
+      .then((data) => setFarmers(data));
   }
 
   function toggleDrafts(lgId) {
@@ -87,10 +95,13 @@ function App() {
   function backFromProfile() {
     setProfileId(null);
     if (farmersFor !== null) {
-      fetch(`http://localhost:8000/lgs/${farmersFor}/farmers`)
+      fetch(
+        `http://localhost:8000/lgs/${farmersFor}/farmers?include_dropped=${showDropped}`
+      )
         .then((response) => response.json())
         .then((data) => setFarmers(data));
     }
+    loadLgs();
   }
 
   function closeRegister() {
@@ -235,6 +246,17 @@ function App() {
           </button>
 
           {farmersFor === lg.id && (
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={showDropped}
+                onChange={(e) => changeShowDropped(lg.id, e.target.checked)}
+              />
+              Show dropped out farmers
+            </label>
+          )}
+
+          {farmersFor === lg.id && (
             <ul className="farmers">
               {farmers.map((f) => (
                 <li key={f.id}>
@@ -243,6 +265,9 @@ function App() {
                     onClick={() => setProfileId(f.id)}
                   >
                     <strong>{f.farmer_code}</strong> · {f.name}
+                    {f.participation === "dropped_out" && (
+                      <span className="badge dropped_out"> Dropped out</span>
+                    )}
                     <br />
                     <small>
                       {f.gender} ·{" "}

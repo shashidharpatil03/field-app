@@ -11,6 +11,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
         : "no"
       : ""
   );
+  const [mobile, setMobile] = useState(draft ? draft.mobile : "");
   const [draftId, setDraftId] = useState(draft ? draft.id : null);
   const [step, setStep] = useState("form");
   const [errors, setErrors] = useState({});
@@ -21,6 +22,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
       name: name,
       gender: gender,
       growing_cotton: growingCotton === "" ? null : growingCotton === "yes",
+      mobile: mobile,
     };
   }
 
@@ -44,7 +46,12 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
   }
 
   async function handleSaveDraft() {
-    if (name.trim() === "" && gender === "" && growingCotton === "") {
+    if (
+      name.trim() === "" &&
+      gender === "" &&
+      growingCotton === "" &&
+      mobile.trim() === ""
+    ) {
       setErrors({ form: "Nothing to save yet. Fill in at least one answer." });
       return;
     }
@@ -65,7 +72,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
 
   function handleReview(event) {
     event.preventDefault();
-    const found = checkForm(name, gender, growingCotton);
+    const found = checkForm(name, gender, growingCotton, mobile);
     setErrors(found);
     if (Object.keys(found).length === 0) {
       setStep("review");
@@ -120,6 +127,10 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
           <div className="profile-row">
             <span className="label">Growing cotton</span>
             <span className="value">{growingCotton === "yes" ? "Yes" : "No"}</span>
+          </div>
+          <div className="profile-row">
+            <span className="label">Mobile number</span>
+            <span className="value">{mobile.trim() || "Not given"}</span>
           </div>
         </div>
 
@@ -185,6 +196,20 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
           {errors.growing_cotton && (
             <p className="error">{errors.growing_cotton}</p>
           )}
+        </div>
+
+        <div className="field">
+          <label htmlFor="mobile">Mobile number (optional)</label>
+          <input
+            id="mobile"
+            type="text"
+            inputMode="numeric"
+            maxLength={10}
+            value={mobile}
+            onChange={(e) => setMobile(e.target.value)}
+            className={errors.mobile ? "has-error" : ""}
+          />
+          {errors.mobile && <p className="error">{errors.mobile}</p>}
         </div>
 
         {errors.form && <p className="error">{errors.form}</p>}

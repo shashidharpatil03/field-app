@@ -7,6 +7,7 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
   const [growingCotton, setGrowingCotton] = useState(
     farmer.growing_cotton ? "yes" : "no"
   );
+  const [mobile, setMobile] = useState(farmer.mobile ?? "");
   const [reason, setReason] = useState("");
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -14,7 +15,7 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
   async function handleSave(event) {
     event.preventDefault();
 
-    const found = checkForm(name, gender, growingCotton);
+    const found = checkForm(name, gender, growingCotton, mobile);
     setErrors(found);
     if (Object.keys(found).length > 0) {
       return;
@@ -31,6 +32,7 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
             name: name,
             gender: gender,
             growing_cotton: growingCotton === "yes",
+            mobile: mobile,
             reason: reason,
           }),
         }
@@ -91,6 +93,20 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
         {errors.growing_cotton && (
           <p className="error">{errors.growing_cotton}</p>
         )}
+      </div>
+
+      <div className="field">
+        <label htmlFor="edit-mobile">Mobile number (optional)</label>
+        <input
+          id="edit-mobile"
+          type="text"
+          inputMode="numeric"
+          maxLength={10}
+          value={mobile}
+          onChange={(e) => setMobile(e.target.value)}
+          className={errors.mobile ? "has-error" : ""}
+        />
+        {errors.mobile && <p className="error">{errors.mobile}</p>}
       </div>
 
       <div className="field">

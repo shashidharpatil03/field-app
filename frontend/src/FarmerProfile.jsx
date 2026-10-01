@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import EditFarmer from "./EditFarmer.jsx";
+import ParticipationChange from "./ParticipationChange.jsx";
 
 function FarmerProfile({ farmerId, onBack }) {
   const [farmer, setFarmer] = useState(null);
@@ -69,12 +70,21 @@ function FarmerProfile({ farmerId, onBack }) {
           <span className="value">{farmer.growing_cotton ? "Yes" : "No"}</span>
         </div>
         <div className="profile-row">
+          <span className="label">Mobile number</span>
+          <span className="value">{farmer.mobile ?? "Not given"}</span>
+        </div>
+        <div className="profile-row">
           <span className="label">Participation</span>
           <span className={`badge ${farmer.participation}`}>
             {farmer.participation === "continuing" ? "Continuing" : "Dropped out"}
           </span>
         </div>
       </div>
+
+      <ParticipationChange
+        farmer={farmer}
+        onChanged={() => setVersion(version + 1)}
+      />
 
       <div className="card">
         <div className="profile-row">

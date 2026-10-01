@@ -1,3 +1,4 @@
+import re
 import sqlite3
 import unicodedata
 from datetime import date, datetime
@@ -128,7 +129,7 @@ def assignment_history(lg_id: int):
 
 
 @app.get("/lgs/{lg_id}/farmers")
-def list_farmers(lg_id: int):
+def list_farmers(lg_id: int, include_dropped: bool = False):
     connection = sqlite3.connect("field.db")
     connection.row_factory = sqlite3.Row
     rows = connection.execute(
@@ -147,10 +148,10 @@ def list_farmers(lg_id: int):
         JOIN learning_groups ON learning_groups.id = farmers.lg_id
         JOIN pus ON pus.id = learning_groups.pu_id
         WHERE farmers.lg_id = ?
-        AND farmers.participation = 'continuing'
+        AND (farmers.participation = 'continuing' OR ? = 1)
         ORDER BY farmers.farmer_number
         """,
-        (lg_id,),
+        (lg_id, 1 if include_dropped else 0),
     ).fetchall()
     connection.close()
     return [dict(row) for row in rows]
@@ -174,6 +175,7 @@ def get_farmer(farmer_id: int):
             farmers.name,
             farmers.gender,
             farmers.growing_cotton,
+            farmers.mobile,
             farmers.participation,
             villages.name AS village,
             pus.name AS pu_name,
@@ -203,9 +205,10 @@ class DraftBody(BaseModel):
     name: str = ""
     gender: str = ""
     growing_cotton: Optional[bool] = None
+    mobile: str = ""
 
 
-def check_farmer(name, gender, growing_cotton):
+def check_farmer(name, gender, growing_cotton, mobile=""):
     errors = {}
 
     if name == "":
@@ -223,11 +226,17 @@ def check_farmer(name, gender, growing_cotton):
     if growing_cotton is None:
         errors["growing_cotton"] = "Please choose Yes or No"
 
+    # Mobile is optional: empty is fine, but if given it must be 10 digits.
+    if mobile != "" and not re.fullmatch(r"[0-9]{10}", mobile):
+        errors["mobile"] = "Mobile number must be exactly 10 digits"
+
     return errors
 
 
-def check_draft(name, gender):
+def check_draft(name, gender, mobile=""):
     errors = {}
+    if mobile != "" and not re.fullmatch(r"[0-9]{1,10}", mobile):
+        errors["mobile"] = "Mobile number can only have digits (up to 10)"
     if len(name) > 60:
         errors["name"] = "Name is too long (at most 60 letters)"
     if gender != "" and gender not in ALLOWED_GENDERS:
@@ -241,7 +250,7 @@ def list_drafts(lg_id: int):
     connection.row_factory = sqlite3.Row
     rows = connection.execute(
         """
-        SELECT id, name, gender, growing_cotton, updated_at
+        SELECT id, name, gender, growing_cotton, mobile, updated_at
         FROM farmer_drafts
         WHERE lg_id = ?
         ORDER BY updated_at DESC, id DESC
@@ -255,7 +264,8 @@ def list_drafts(lg_id: int):
 @app.post("/lgs/{lg_id}/drafts")
 def create_draft(lg_id: int, body: DraftBody):
     name = " ".join(body.name.split())
-    errors = check_draft(name, body.gender)
+    mobile = body.mobile.strip()
+    errors = check_draft(name, body.gender, mobile)
     if errors:
         raise HTTPException(status_code=400, detail=errors)
 
@@ -270,10 +280,12 @@ def create_draft(lg_id: int, body: DraftBody):
     growing = None if body.growing_cotton is None else int(body.growing_cotton)
     cursor = connection.execute(
         """
-        INSERT INTO farmer_drafts (lg_id, name, gender, growing_cotton, updated_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO farmer_drafts
+            (lg_id, name, gender, growing_cotton, mobile, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (lg_id, name, body.gender, growing, datetime.now().isoformat(timespec="seconds")),
+        (lg_id, name, body.gender, growing, mobile,
+         datetime.now().isoformat(timespec="seconds")),
     )
     new_id = cursor.lastrowid
     connection.commit()
@@ -284,7 +296,8 @@ def create_draft(lg_id: int, body: DraftBody):
 @app.put("/drafts/{draft_id}")
 def update_draft(draft_id: int, body: DraftBody):
     name = " ".join(body.name.split())
-    errors = check_draft(name, body.gender)
+    mobile = body.mobile.strip()
+    errors = check_draft(name, body.gender, mobile)
     if errors:
         raise HTTPException(status_code=400, detail=errors)
 
@@ -293,10 +306,11 @@ def update_draft(draft_id: int, body: DraftBody):
     cursor = connection.execute(
         """
         UPDATE farmer_drafts
-        SET name = ?, gender = ?, growing_cotton = ?, updated_at = ?
+        SET name = ?, gender = ?, growing_cotton = ?, mobile = ?, updated_at = ?
         WHERE id = ?
         """,
-        (name, body.gender, growing, datetime.now().isoformat(timespec="seconds"), draft_id),
+        (name, body.gender, growing, mobile,
+         datetime.now().isoformat(timespec="seconds"), draft_id),
     )
     connection.commit()
     changed = cursor.rowcount
@@ -325,17 +339,18 @@ def submit_draft(draft_id: int):
     connection = sqlite3.connect("field.db")
 
     draft = connection.execute(
-        "SELECT lg_id, name, gender, growing_cotton FROM farmer_drafts WHERE id = ?",
+        "SELECT lg_id, name, gender, growing_cotton, mobile "
+        "FROM farmer_drafts WHERE id = ?",
         (draft_id,),
     ).fetchone()
     if draft is None:
         connection.close()
         raise HTTPException(status_code=404, detail={"form": "Draft not found"})
 
-    lg_id, name, gender, growing = draft
+    lg_id, name, gender, growing, mobile = draft
     growing_cotton = None if growing is None else bool(growing)
 
-    errors = check_farmer(name, gender, growing_cotton)
+    errors = check_farmer(name, gender, growing_cotton, mobile)
     if errors:
         connection.close()
         raise HTTPException(status_code=400, detail=errors)
@@ -351,10 +366,11 @@ def submit_draft(draft_id: int):
 
     cursor = connection.execute(
         """
-        INSERT INTO farmers (lg_id, farmer_number, name, gender, growing_cotton)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO farmers
+            (lg_id, farmer_number, name, gender, growing_cotton, mobile)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (lg_id, number, name, gender, growing),
+        (lg_id, number, name, gender, growing, mobile or None),
     )
     new_id = cursor.lastrowid
     connection.execute("DELETE FROM farmer_drafts WHERE id = ?", (draft_id,))
@@ -380,6 +396,7 @@ class FarmerEdit(BaseModel):
     name: str = ""
     gender: str = ""
     growing_cotton: Optional[bool] = None
+    mobile: str = ""
     reason: str = ""
 
 
@@ -387,8 +404,9 @@ class FarmerEdit(BaseModel):
 def edit_farmer(farmer_id: int, body: FarmerEdit):
     name = " ".join(body.name.split())
     reason = " ".join(body.reason.split())
+    mobile = body.mobile.strip()
 
-    errors = check_farmer(name, body.gender, body.growing_cotton)
+    errors = check_farmer(name, body.gender, body.growing_cotton, mobile)
     if len(reason) > 200:
         errors["reason"] = "Reason is too long (at most 200 characters)"
     if errors:
@@ -396,7 +414,7 @@ def edit_farmer(farmer_id: int, body: FarmerEdit):
 
     connection = sqlite3.connect("field.db")
     old = connection.execute(
-        "SELECT name, gender, growing_cotton FROM farmers WHERE id = ?",
+        "SELECT name, gender, growing_cotton, mobile FROM farmers WHERE id = ?",
         (farmer_id,),
     ).fetchone()
     if old is None:
@@ -414,14 +432,18 @@ def edit_farmer(farmer_id: int, body: FarmerEdit):
             ("Growing cotton", "Yes" if old[2] else "No", "Yes" if new_cotton else "No")
         )
 
+    if (old[3] or "") != mobile:
+        changes.append(("Mobile number", old[3] or "(none)", mobile or "(none)"))
+
     if not changes:
         connection.close()
         raise HTTPException(status_code=400, detail={"form": "Nothing was changed"})
 
     today = date.today().isoformat()
     connection.execute(
-        "UPDATE farmers SET name = ?, gender = ?, growing_cotton = ? WHERE id = ?",
-        (name, body.gender, new_cotton, farmer_id),
+        "UPDATE farmers SET name = ?, gender = ?, growing_cotton = ?, mobile = ? "
+        "WHERE id = ?",
+        (name, body.gender, new_cotton, mobile or None, farmer_id),
     )
     for field, old_value, new_value in changes:
         connection.execute(
@@ -452,3 +474,68 @@ def farmer_changes(farmer_id: int):
     ).fetchall()
     connection.close()
     return [dict(row) for row in rows]
+
+
+DROP_REASONS = [
+    "Moved away",
+    "No longer growing cotton",
+    "Lost interest",
+    "Health or family reasons",
+    "Other",
+]
+
+
+class ParticipationChange(BaseModel):
+    participation: str = ""
+    reason: str = ""
+    note: str = ""
+
+
+@app.post("/farmers/{farmer_id}/participation")
+def change_participation(farmer_id: int, body: ParticipationChange):
+    note = " ".join(body.note.split())
+    errors = {}
+
+    if body.participation not in ("continuing", "dropped_out"):
+        errors["form"] = "Unknown participation status"
+    if body.participation == "dropped_out" and body.reason not in DROP_REASONS:
+        errors["reason"] = "Please choose a reason"
+    if len(note) > 200:
+        errors["note"] = "Note is too long (at most 200 characters)"
+    if errors:
+        raise HTTPException(status_code=400, detail=errors)
+
+    connection = sqlite3.connect("field.db")
+    row = connection.execute(
+        "SELECT participation FROM farmers WHERE id = ?", (farmer_id,)
+    ).fetchone()
+    if row is None:
+        connection.close()
+        raise HTTPException(status_code=404, detail={"form": "Farmer not found"})
+    if row[0] == body.participation:
+        connection.close()
+        raise HTTPException(
+            status_code=400, detail={"form": "The farmer already has this status"}
+        )
+
+    labels = {"continuing": "Continuing", "dropped_out": "Dropped out"}
+    reason = body.reason if body.participation == "dropped_out" else ""
+    if note:
+        reason = f"{reason} - {note}" if reason else note
+
+    connection.execute(
+        "UPDATE farmers SET participation = ? WHERE id = ?",
+        (body.participation, farmer_id),
+    )
+    connection.execute(
+        """
+        INSERT INTO farmer_change_log
+            (farmer_id, field, old_value, new_value, changed_on, reason)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (farmer_id, "Participation", labels[row[0]], labels[body.participation],
+         date.today().isoformat(), reason),
+    )
+    connection.commit()
+    connection.close()
+    return {"message": "Saved"}

@@ -1,5 +1,5 @@
 // Rules shared by the register form and the edit form.
-export function checkForm(name, gender, growingCotton) {
+export function checkForm(name, gender, growingCotton, mobile = "") {
   const errors = {};
   const cleanName = name.trim();
 
@@ -19,6 +19,11 @@ export function checkForm(name, gender, growingCotton) {
 
   if (growingCotton === "") {
     errors.growing_cotton = "Please choose Yes or No";
+  }
+
+  // Mobile is optional, but if it is filled in it must be exactly 10 digits.
+  if (mobile.trim() !== "" && !/^[0-9]{10}$/.test(mobile.trim())) {
+    errors.mobile = "Mobile number must be exactly 10 digits";
   }
 
   return errors;
