@@ -20,6 +20,16 @@ export function getApiUser() {
 // give up, and the caller treats it like being offline.
 const TIMEOUT_MS = 20000;
 
+// The code asks for "http://localhost:8000/...". When the app is opened from
+// another device (a phone on the same Wi-Fi), "localhost" would mean that
+// device itself, so we swap in the address the page was opened from.
+function fixAddress(url) {
+  return url.replace(
+    "http://localhost:8000",
+    `http://${window.location.hostname}:8000`
+  );
+}
+
 export function apiFetch(url, options = {}) {
   const headers = { ...(options.headers || {}) };
   if (currentUserId !== null) {
@@ -29,7 +39,11 @@ export function apiFetch(url, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-  return fetch(url, { ...options, headers, signal: controller.signal })
+  return fetch(fixAddress(url), {
+    ...options,
+    headers,
+    signal: controller.signal,
+  })
     .then((response) => {
       if (response.status === 401) {
         onUnauthorized();
