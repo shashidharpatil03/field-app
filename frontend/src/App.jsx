@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import FarmerProfile from "./FarmerProfile.jsx";
 import RegisterFarmer from "./RegisterFarmer.jsx";
 import Facilitators from "./Facilitators.jsx";
+import BulkMove from "./BulkMove.jsx";
+import BulkParticipation from "./BulkParticipation.jsx";
 
 function App() {
   const [lgs, setLgs] = useState([]);
@@ -15,6 +17,8 @@ function App() {
   const [farmers, setFarmers] = useState([]); // NEW
   const [showDropped, setShowDropped] = useState(false);
   const [view, setView] = useState("lgs");
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
   const [selectedFfId, setSelectedFfId] = useState(null);
   const [profileId, setProfileId] = useState(null);
   const [registerLg, setRegisterLg] = useState(null);
@@ -56,6 +60,7 @@ function App() {
 
   // NEW
   function toggleFarmers(lgId) {
+    stopSelecting();
     if (farmersFor === lgId) {
       setFarmersFor(null);
       return;
@@ -105,6 +110,42 @@ function App() {
         .then((data) => setFarmers(data));
     }
     loadLgs();
+  }
+
+  function startSelecting() {
+    setSelecting(true);
+    setSelectedIds([]);
+  }
+
+  function stopSelecting() {
+    setSelecting(false);
+    setSelectedIds([]);
+  }
+
+  function togglePicked(farmerId) {
+    if (selectedIds.includes(farmerId)) {
+      setSelectedIds(selectedIds.filter((id) => id !== farmerId));
+    } else {
+      setSelectedIds([...selectedIds, farmerId]);
+    }
+  }
+
+  function selectAllContinuing() {
+    setSelectedIds(
+      farmers.filter((f) => f.participation === "continuing").map((f) => f.id)
+    );
+  }
+
+  function bulkDone(text) {
+    stopSelecting();
+    setMessage(text);
+    loadLgs();
+    fetch(
+      `http://localhost:8000/lgs/${farmersFor}/farmers?include_dropped=${showDropped}`
+    )
+      .then((response) => response.json())
+      .then((data) => setFarmers(data));
+    window.scrollTo({ top: 0 });
   }
 
   function closeRegister() {
@@ -176,8 +217,23 @@ function App() {
       >
         Facilitators
       </button>
+      <button
+        className={view === "move" ? "tab active" : "tab"}
+        onClick={() => setView("move")}
+      >
+        Move groups
+      </button>
     </div>
   );
+
+  if (view === "move") {
+    return (
+      <div className="page">
+        {tabs}
+        <BulkMove />
+      </div>
+    );
+  }
 
   if (view === "ffs") {
     return (
@@ -290,24 +346,60 @@ function App() {
             </label>
           )}
 
+          {farmersFor === lg.id && !selecting && (
+            <button onClick={startSelecting}>Select several farmers</button>
+          )}
+
+          {farmersFor === lg.id && selecting && (
+            <div>
+              <button onClick={selectAllContinuing}>Select all continuing</button>
+              <button onClick={() => setSelectedIds([])}>Clear</button>
+              <button onClick={stopSelecting}>Cancel</button>
+              <p>{selectedIds.length} selected</p>
+
+              {selectedIds.length > 0 && (
+                <BulkParticipation
+                  farmers={farmers.filter((f) => selectedIds.includes(f.id))}
+                  onDone={bulkDone}
+                />
+              )}
+            </div>
+          )}
+
           {farmersFor === lg.id && (
             <ul className="farmers">
               {farmers.map((f) => (
                 <li key={f.id}>
-                  <button
-                    className="farmer-link"
-                    onClick={() => setProfileId(f.id)}
-                  >
-                    <strong>{f.farmer_code}</strong> · {f.name}
-                    {f.participation === "dropped_out" && (
-                      <span className="badge dropped_out"> Dropped out</span>
-                    )}
-                    <br />
-                    <small>
-                      {f.gender} ·{" "}
-                      {f.growing_cotton ? "Growing cotton" : "Not growing cotton"}
-                    </small>
-                  </button>
+                  {selecting ? (
+                    <label className="pick-row">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(f.id)}
+                        onChange={() => togglePicked(f.id)}
+                      />
+                      <span>
+                        <strong>{f.farmer_code}</strong> · {f.name}
+                        {f.participation === "dropped_out" && (
+                          <span className="badge dropped_out"> Dropped out</span>
+                        )}
+                      </span>
+                    </label>
+                  ) : (
+                    <button
+                      className="farmer-link"
+                      onClick={() => setProfileId(f.id)}
+                    >
+                      <strong>{f.farmer_code}</strong> · {f.name}
+                      {f.participation === "dropped_out" && (
+                        <span className="badge dropped_out"> Dropped out</span>
+                      )}
+                      <br />
+                      <small>
+                        {f.gender} ·{" "}
+                        {f.growing_cotton ? "Growing cotton" : "Not growing cotton"}
+                      </small>
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>

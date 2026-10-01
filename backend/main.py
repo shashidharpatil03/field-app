@@ -2,7 +2,7 @@ import re
 import sqlite3
 import unicodedata
 from datetime import date, datetime
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +26,7 @@ def list_lgs():
         SELECT
             learning_groups.id,
             learning_groups.pu_id,
+            pus.name AS pu_name,
             pus.code || '-' || printf('%03d', learning_groups.lg_number)
                 AS lg_code,
             villages.name AS village,
@@ -34,6 +35,7 @@ def list_lgs():
              AND farmers.participation = 'continuing') AS farmer_count,
             (SELECT COUNT(*) FROM farmer_drafts
              WHERE farmer_drafts.lg_id = learning_groups.id) AS draft_count,
+            facilitators.id AS ff_id,
             facilitators.name AS ff_name
         FROM learning_groups
         JOIN pus ON pus.id = learning_groups.pu_id
@@ -545,17 +547,31 @@ class ParticipationChange(BaseModel):
     note: str = ""
 
 
-@app.post("/farmers/{farmer_id}/participation")
-def change_participation(farmer_id: int, body: ParticipationChange):
-    note = " ".join(body.note.split())
-    errors = {}
+PARTICIPATION_LABELS = {"continuing": "Continuing", "dropped_out": "Dropped out"}
 
-    if body.participation not in ("continuing", "dropped_out"):
+
+def check_participation(participation, reason, note):
+    errors = {}
+    if participation not in PARTICIPATION_LABELS:
         errors["form"] = "Unknown participation status"
-    if body.participation == "dropped_out" and body.reason not in DROP_REASONS:
+    if participation == "dropped_out" and reason not in DROP_REASONS:
         errors["reason"] = "Please choose a reason"
     if len(note) > 200:
         errors["note"] = "Note is too long (at most 200 characters)"
+    return errors
+
+
+def build_reason(participation, reason, note):
+    text = reason if participation == "dropped_out" else ""
+    if note:
+        text = f"{text} - {note}" if text else note
+    return text
+
+
+@app.post("/farmers/{farmer_id}/participation")
+def change_participation(farmer_id: int, body: ParticipationChange):
+    note = " ".join(body.note.split())
+    errors = check_participation(body.participation, body.reason, note)
     if errors:
         raise HTTPException(status_code=400, detail=errors)
 
@@ -572,10 +588,7 @@ def change_participation(farmer_id: int, body: ParticipationChange):
             status_code=400, detail={"form": "The farmer already has this status"}
         )
 
-    labels = {"continuing": "Continuing", "dropped_out": "Dropped out"}
-    reason = body.reason if body.participation == "dropped_out" else ""
-    if note:
-        reason = f"{reason} - {note}" if reason else note
+    reason = build_reason(body.participation, body.reason, note)
 
     connection.execute(
         "UPDATE farmers SET participation = ? WHERE id = ?",
@@ -587,12 +600,141 @@ def change_participation(farmer_id: int, body: ParticipationChange):
             (farmer_id, field, old_value, new_value, changed_on, reason)
         VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (farmer_id, "Participation", labels[row[0]], labels[body.participation],
-         date.today().isoformat(), reason),
+        (farmer_id, "Participation", PARTICIPATION_LABELS[row[0]],
+         PARTICIPATION_LABELS[body.participation], date.today().isoformat(), reason),
     )
     connection.commit()
     connection.close()
     return {"message": "Saved"}
+
+
+class BulkParticipation(BaseModel):
+    farmer_ids: List[int] = []
+    participation: str = ""
+    reason: str = ""
+    note: str = ""
+
+
+@app.post("/farmers/bulk-participation")
+def bulk_participation(body: BulkParticipation):
+    note = " ".join(body.note.split())
+    errors = check_participation(body.participation, body.reason, note)
+
+    ids = list(set(body.farmer_ids))
+    if len(ids) == 0:
+        errors["form"] = "Select at least one farmer"
+    elif len(ids) > 500:
+        errors["form"] = "Too many farmers at once (at most 500)"
+    if errors:
+        raise HTTPException(status_code=400, detail=errors)
+
+    connection = sqlite3.connect("field.db")
+    marks = ",".join("?" * len(ids))
+    rows = connection.execute(
+        f"SELECT id, participation FROM farmers WHERE id IN ({marks})", ids
+    ).fetchall()
+    if len(rows) != len(ids):
+        connection.close()
+        raise HTTPException(
+            status_code=404, detail={"form": "Some of these farmers were not found"}
+        )
+
+    to_change = [row for row in rows if row[1] != body.participation]
+    if len(to_change) == 0:
+        connection.close()
+        raise HTTPException(
+            status_code=400,
+            detail={"form": "All selected farmers already have this status"},
+        )
+
+    reason = build_reason(body.participation, body.reason, note)
+    today = date.today().isoformat()
+    for farmer_id, old_status in to_change:
+        connection.execute(
+            "UPDATE farmers SET participation = ? WHERE id = ?",
+            (body.participation, farmer_id),
+        )
+        connection.execute(
+            """
+            INSERT INTO farmer_change_log
+                (farmer_id, field, old_value, new_value, changed_on, reason)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (farmer_id, "Participation", PARTICIPATION_LABELS[old_status],
+             PARTICIPATION_LABELS[body.participation], today, reason),
+        )
+    connection.commit()
+    connection.close()
+    return {"changed": len(to_change), "skipped": len(rows) - len(to_change)}
+
+
+class BulkReassign(BaseModel):
+    lg_ids: List[int] = []
+    new_ff_id: int = 0
+
+
+@app.post("/lgs/bulk-reassign")
+def bulk_reassign(body: BulkReassign):
+    ids = list(set(body.lg_ids))
+    if len(ids) == 0:
+        raise HTTPException(status_code=400, detail="Select at least one group")
+    if len(ids) > 200:
+        raise HTTPException(status_code=400, detail="Too many groups at once")
+
+    connection = sqlite3.connect("field.db")
+    ff = connection.execute(
+        "SELECT id, pu_id FROM facilitators WHERE id = ?", (body.new_ff_id,)
+    ).fetchone()
+    if ff is None:
+        connection.close()
+        raise HTTPException(status_code=404, detail="Facilitator not found")
+
+    marks = ",".join("?" * len(ids))
+    groups = connection.execute(
+        f"SELECT id, pu_id FROM learning_groups WHERE id IN ({marks})", ids
+    ).fetchall()
+    if len(groups) != len(ids):
+        connection.close()
+        raise HTTPException(status_code=404, detail="Some groups were not found")
+    if any(group[1] != ff[1] for group in groups):
+        connection.close()
+        raise HTTPException(
+            status_code=400,
+            detail="That facilitator belongs to a different PU than some of the groups",
+        )
+
+    current = {}
+    for assignment_id, lg_id, ff_id in connection.execute(
+        f"""
+        SELECT id, lg_id, ff_id FROM assignments
+        WHERE end_date IS NULL AND lg_id IN ({marks})
+        """,
+        ids,
+    ).fetchall():
+        current[lg_id] = (assignment_id, ff_id)
+
+    to_move = [lg_id for lg_id in ids if current.get(lg_id, (None, None))[1] != ff[0]]
+    if len(to_move) == 0:
+        connection.close()
+        raise HTTPException(
+            status_code=400,
+            detail="All selected groups are already with that facilitator",
+        )
+
+    today = date.today().isoformat()
+    for lg_id in to_move:
+        if lg_id in current:
+            connection.execute(
+                "UPDATE assignments SET end_date = ? WHERE id = ?",
+                (today, current[lg_id][0]),
+            )
+        connection.execute(
+            "INSERT INTO assignments (lg_id, ff_id, start_date) VALUES (?, ?, ?)",
+            (lg_id, ff[0], today),
+        )
+    connection.commit()
+    connection.close()
+    return {"moved": len(to_move), "skipped": len(ids) - len(to_move)}
 
 
 @app.get("/ffs/summary")

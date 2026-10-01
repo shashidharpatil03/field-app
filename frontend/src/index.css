@@ -251,3 +251,24 @@ input[type="text"] {
   font-weight: 400;
   color: #5d6963;
 }
+
+.pick-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.pick-card input,
+.pick-row input {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.pick-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 6px 0;
+}
