@@ -133,3 +133,32 @@ select {
   background: #eceff1;
   color: #455a64;
 }
+.field {
+  margin-bottom: 16px;
+}
+
+.field label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+input[type="text"] {
+  font: inherit;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #999;
+}
+
+.has-error {
+  border: 2px solid #b3261e;
+}
+
+.error {
+  color: #b3261e;
+  margin: 6px 0 0;
+  font-weight: 600;
+}

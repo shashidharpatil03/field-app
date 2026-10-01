@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import FarmerProfile from "./FarmerProfile.jsx";
+import RegisterFarmer from "./RegisterFarmer.jsx";
 
 function App() {
   const [lgs, setLgs] = useState([]);
@@ -12,6 +13,7 @@ function App() {
   const [farmersFor, setFarmersFor] = useState(null); // NEW
   const [farmers, setFarmers] = useState([]); // NEW
   const [profileId, setProfileId] = useState(null);
+  const [registerLg, setRegisterLg] = useState(null);
 
   function loadLgs() {
     fetch("http://localhost:8000/lgs")
@@ -89,6 +91,24 @@ function App() {
     );
   }
 
+  if (registerLg !== null) {
+    return (
+      <div className="page">
+        <RegisterFarmer
+          lgId={registerLg.id}
+          lgCode={registerLg.lg_code}
+          onBack={() => setRegisterLg(null)}
+          onDone={(text) => {
+            setRegisterLg(null);
+            setFarmersFor(null);
+            setMessage(text);
+            loadLgs();
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="page">
       <h1>Learning groups</h1>
@@ -139,6 +159,8 @@ function App() {
               ))}
             </div>
           )}
+
+          <button onClick={() => setRegisterLg(lg)}>Register farmer</button>
 
           {/* NEW: farmers button and list */}
           <button onClick={() => toggleFarmers(lg.id)}>

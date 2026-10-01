@@ -1,5 +1,7 @@
 import sqlite3
+import unicodedata
 from datetime import date
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -191,3 +193,71 @@ def get_farmer(farmer_id: int):
     if row is None:
         raise HTTPException(status_code=404, detail="Farmer not found")
     return dict(row)
+
+ALLOWED_GENDERS = ["Female", "Male", "Other"]
+
+
+class NewFarmer(BaseModel):
+    name: str = ""
+    gender: str = ""
+    growing_cotton: Optional[bool] = None
+
+
+def check_farmer(name, gender, growing_cotton):
+    errors = {}
+
+    if name == "":
+        errors["name"] = "Please enter the farmer's full name"
+    elif len(name) < 3:
+        errors["name"] = "Name is too short (at least 3 letters)"
+    elif len(name) > 60:
+        errors["name"] = "Name is too long (at most 60 letters)"
+    elif not all(unicodedata.category(ch)[0] in "LM" or ch in " .'-" for ch in name):
+        errors["name"] = "Name can only have letters and spaces"
+
+    if gender not in ALLOWED_GENDERS:
+        errors["gender"] = "Please choose a gender"
+
+    if growing_cotton is None:
+        errors["growing_cotton"] = "Please choose Yes or No"
+
+    return errors
+
+
+@app.post("/lgs/{lg_id}/farmers")
+def register_farmer(lg_id: int, body: NewFarmer):
+    name = " ".join(body.name.split())
+
+    errors = check_farmer(name, body.gender, body.growing_cotton)
+    if errors:
+        raise HTTPException(status_code=400, detail=errors)
+
+    connection = sqlite3.connect("field.db")
+
+    lg = connection.execute(
+        "SELECT id FROM learning_groups WHERE id = ?", (lg_id,)
+    ).fetchone()
+    if lg is None:
+        connection.close()
+        raise HTTPException(status_code=404, detail={"form": "Group not found"})
+
+    connection.execute(
+        "UPDATE learning_groups SET last_farmer_number = last_farmer_number + 1 "
+        "WHERE id = ?",
+        (lg_id,),
+    )
+    number = connection.execute(
+        "SELECT last_farmer_number FROM learning_groups WHERE id = ?", (lg_id,)
+    ).fetchone()[0]
+
+    cursor = connection.execute(
+        """
+        INSERT INTO farmers (lg_id, farmer_number, name, gender, growing_cotton)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (lg_id, number, name, body.gender, 1 if body.growing_cotton else 0),
+    )
+    new_id = cursor.lastrowid
+    connection.commit()
+    connection.close()
+    return {"id": new_id, "farmer_number": number}
