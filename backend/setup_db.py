@@ -1,11 +1,14 @@
 import random
 import sqlite3
 
+from users_seed import create_users_table, seed_users
+
 random.seed(42)
 
 connection = sqlite3.connect("field.db")
 cursor = connection.cursor()
 
+cursor.execute("DROP TABLE IF EXISTS app_users")
 cursor.execute("DROP TABLE IF EXISTS farmer_change_log")
 cursor.execute("DROP TABLE IF EXISTS farmer_drafts")
 cursor.execute("DROP TABLE IF EXISTS farmers")
@@ -187,6 +190,9 @@ cursor.execute("""
         WHERE farmers.lg_id = learning_groups.id
     )
 """)
+
+create_users_table(connection)
+seed_users(connection)
 
 connection.commit()
 connection.close()

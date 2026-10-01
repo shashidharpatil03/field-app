@@ -50,6 +50,22 @@ def list_lgs():
     connection.close()
     return [dict(row) for row in rows]
 
+@app.get("/users")
+def list_users():
+    connection = sqlite3.connect("field.db")
+    connection.row_factory = sqlite3.Row
+    rows = connection.execute(
+        """
+        SELECT app_users.id, app_users.name, app_users.role, pus.name AS pu_name
+        FROM app_users
+        JOIN pus ON pus.id = app_users.pu_id
+        ORDER BY app_users.role DESC, app_users.name
+        """
+    ).fetchall()
+    connection.close()
+    return [dict(row) for row in rows]
+
+
 @app.get("/ffs")
 def list_ffs():
     connection = sqlite3.connect("field.db")
@@ -157,6 +173,20 @@ def list_farmers(lg_id: int, include_dropped: bool = False):
     ).fetchall()
     connection.close()
     return [dict(row) for row in rows]
+
+
+@app.get("/farmers/summary")
+def farmers_summary():
+    connection = sqlite3.connect("field.db")
+    row = connection.execute(
+        """
+        SELECT COUNT(*), COALESCE(SUM(growing_cotton), 0)
+        FROM farmers
+        WHERE participation = 'continuing'
+        """
+    ).fetchone()
+    connection.close()
+    return {"continuing": row[0], "growing_cotton": row[1]}
 
 
 @app.get("/farmers/{farmer_id}")

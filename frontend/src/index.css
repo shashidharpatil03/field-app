@@ -272,3 +272,200 @@ input[type="text"] {
   gap: 12px;
   padding: 6px 0;
 }
+
+/* ---- sign-in, top bar, home menu (step 5) ---- */
+
+.login-top {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.logos {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  margin: 16px 0 24px;
+}
+
+.logo {
+  max-height: 64px;
+  max-width: 45%;
+  object-fit: contain;
+}
+
+.logo-fallback {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1f6b4f;
+}
+
+.login h1 {
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.login > p {
+  text-align: center;
+  color: #5d6963;
+}
+
+button.primary {
+  width: 100%;
+  margin: 8px 0 0;
+  padding: 14px;
+  font-weight: 600;
+  background: #1f6b4f;
+  color: white;
+}
+
+button.primary:disabled {
+  opacity: 0.4;
+}
+
+.note {
+  margin-top: 16px;
+  font-size: 14px;
+  color: #5d6963;
+  text-align: center;
+}
+
+.topbar {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px 16px 0;
+}
+
+.topbar-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.welcome {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.who {
+  color: #5d6963;
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+.lang-toggle {
+  display: flex;
+  flex-shrink: 0;
+  border: 2px solid #1f6b4f;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.lang-toggle button {
+  margin: 0;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 0;
+  font-size: 14px;
+  background: white;
+}
+
+.lang-toggle button.active {
+  background: #1f6b4f;
+  color: white;
+}
+
+.link-button {
+  margin: 4px 0 0;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  font-size: 14px;
+  text-decoration: underline;
+}
+
+.menu {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.menu-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 20px 8px;
+  border: 1px solid #d5ddd8;
+  border-radius: 16px;
+  background: white;
+  color: #1c2b24;
+  min-height: 140px;
+}
+
+.menu-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+}
+
+.menu-label {
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.tile-farmers .menu-icon {
+  background: #dff1e7;
+  color: #1f6b4f;
+}
+
+.tile-practice .menu-icon {
+  background: #fdf0d2;
+  color: #8a5a00;
+}
+
+.tile-capacity .menu-icon {
+  background: #dce9f8;
+  color: #1d4f8c;
+}
+
+.tile-rir .menu-icon {
+  background: #ece3f6;
+  color: #5b3a8c;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 8px 0 12px;
+}
+
+.stat {
+  background: white;
+  border: 1px solid #d5ddd8;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.stat-number {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1f6b4f;
+}
+
+.stat-label {
+  color: #5d6963;
+  font-size: 14px;
+}
+
+.home-button {
+  margin-top: 0;
+}
