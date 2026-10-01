@@ -70,7 +70,7 @@ function App() {
 
     if (response.ok) {
       const newFf = ffs.find((f) => f.id === Number(newFfId));
-      setMessage(`${lg.name} now belongs to ${newFf.name}.`);
+      setMessage(`${lg.lg_code} now belongs to ${newFf.name}.`);
       setMovingId(null);
       setHistoryFor(null);
       loadLgs();
@@ -86,7 +86,7 @@ function App() {
 
       {lgs.map((lg) => (
         <div className="card" key={lg.id}>
-          <h3>{lg.name}</h3>
+          <h3>{lg.lg_code}</h3>
           <p>{lg.village} · {lg.farmer_count} farmers</p>
           <p>Facilitator: {lg.ff_name ?? "Nobody yet"}</p>
 
@@ -98,7 +98,7 @@ function App() {
               >
                 <option value="">Choose a facilitator...</option>
                 {ffs
-                  .filter((f) => f.name !== lg.ff_name)
+                  .filter((f) => f.pu_id === lg.pu_id && f.name !== lg.ff_name)
                   .map((f) => (
                     <option key={f.id} value={f.id}>
                       {f.name}
@@ -138,7 +138,14 @@ function App() {
           {farmersFor === lg.id && (
             <ul className="farmers">
               {farmers.map((f) => (
-                <li key={f.id}>{f.name}</li>
+                <li key={f.id}>
+                  <strong>{f.farmer_code}</strong> · {f.name}
+                  <br />
+                  <small>
+                    {f.gender} ·{" "}
+                    {f.growing_cotton ? "Growing cotton" : "Not growing cotton"}
+                  </small>
+                </li>
               ))}
             </ul>
           )}

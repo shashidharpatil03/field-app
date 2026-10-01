@@ -79,3 +79,7 @@ select {
 .farmers li {
   padding: 4px 0;
 }
+
+.farmers small {
+  color: #5d6963;
+}

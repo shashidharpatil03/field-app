@@ -22,18 +22,23 @@ def list_lgs():
     rows = connection.execute("""
         SELECT
             learning_groups.id,
-            learning_groups.name,
-            learning_groups.village,
+            learning_groups.pu_id,
+            pus.code || '-' || printf('%03d', learning_groups.lg_number)
+                AS lg_code,
+            villages.name AS village,
             (SELECT COUNT(*) FROM farmers
-             WHERE farmers.lg_id = learning_groups.id) AS farmer_count,
+             WHERE farmers.lg_id = learning_groups.id
+             AND farmers.participation = 'continuing') AS farmer_count,
             facilitators.name AS ff_name
         FROM learning_groups
+        JOIN pus ON pus.id = learning_groups.pu_id
+        JOIN villages ON villages.id = learning_groups.village_id
         LEFT JOIN assignments
             ON assignments.lg_id = learning_groups.id
             AND assignments.end_date IS NULL
         LEFT JOIN facilitators
             ON facilitators.id = assignments.ff_id
-        ORDER BY learning_groups.name
+        ORDER BY pus.code, learning_groups.lg_number
     """).fetchall()
     connection.close()
     return [dict(row) for row in rows]
@@ -43,7 +48,7 @@ def list_ffs():
     connection = sqlite3.connect("field.db")
     connection.row_factory = sqlite3.Row
     rows = connection.execute(
-        "SELECT id, name FROM facilitators ORDER BY name"
+        "SELECT id, name, pu_id FROM facilitators ORDER BY name"
     ).fetchall()
     connection.close()
     return [dict(row) for row in rows]
@@ -58,14 +63,20 @@ def reassign_lg(lg_id: int, body: ReassignRequest):
     connection = sqlite3.connect("field.db")
 
     lg = connection.execute(
-        "SELECT id FROM learning_groups WHERE id = ?", (lg_id,)
+        "SELECT id, pu_id FROM learning_groups WHERE id = ?", (lg_id,)
     ).fetchone()
     ff = connection.execute(
-        "SELECT id FROM facilitators WHERE id = ?", (body.new_ff_id,)
+        "SELECT id, pu_id FROM facilitators WHERE id = ?", (body.new_ff_id,)
     ).fetchone()
     if lg is None or ff is None:
         connection.close()
         raise HTTPException(status_code=404, detail="Group or facilitator not found")
+
+    if lg[1] != ff[1]:
+        connection.close()
+        raise HTTPException(
+            status_code=400, detail="That facilitator belongs to a different PU"
+        )
 
     current = connection.execute(
         "SELECT id, ff_id FROM assignments WHERE lg_id = ? AND end_date IS NULL",
@@ -117,7 +128,24 @@ def list_farmers(lg_id: int):
     connection = sqlite3.connect("field.db")
     connection.row_factory = sqlite3.Row
     rows = connection.execute(
-        "SELECT id, name FROM farmers WHERE lg_id = ? ORDER BY name",
+        """
+        SELECT
+            farmers.id,
+            pus.code
+                || '-' || printf('%03d', learning_groups.lg_number)
+                || '-' || printf('%02d', farmers.farmer_number)
+                AS farmer_code,
+            farmers.name,
+            farmers.gender,
+            farmers.growing_cotton,
+            farmers.participation
+        FROM farmers
+        JOIN learning_groups ON learning_groups.id = farmers.lg_id
+        JOIN pus ON pus.id = learning_groups.pu_id
+        WHERE farmers.lg_id = ?
+        AND farmers.participation = 'continuing'
+        ORDER BY farmers.farmer_number
+        """,
         (lg_id,),
     ).fetchall()
     connection.close()
