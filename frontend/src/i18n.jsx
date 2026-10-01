@@ -33,9 +33,6 @@ export const translations = {
     farmers: "farmers",
     facilitator: "Facilitator:",
     nobodyYet: "Nobody yet",
-    moveToFf: "Move to another FF",
-    chooseFf: "Choose a facilitator...",
-    confirmMove: "Confirm move",
     cancel: "Cancel",
     history: "History",
     hideHistory: "Hide history",
@@ -61,7 +58,6 @@ export const translations = {
     gender_Female: "Female",
     gender_Male: "Male",
     gender_Other: "Other",
-    movedTo: "{lg} now belongs to {name}.",
   },
 
   mr: {
@@ -94,9 +90,6 @@ export const translations = {
     farmers: "शेतकरी",
     facilitator: "फॅसिलिटेटर:",
     nobodyYet: "अद्याप कोणी नाही",
-    moveToFf: "दुसऱ्या फॅसिलिटेटरकडे हलवा",
-    chooseFf: "फॅसिलिटेटर निवडा...",
-    confirmMove: "हलवण्याची खात्री करा",
     cancel: "रद्द करा",
     history: "इतिहास",
     hideHistory: "इतिहास लपवा",
@@ -122,7 +115,6 @@ export const translations = {
     gender_Female: "महिला",
     gender_Male: "पुरुष",
     gender_Other: "इतर",
-    movedTo: "{lg} आता {name} यांच्याकडे आहे.",
   },
 };
 

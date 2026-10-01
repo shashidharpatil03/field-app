@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { apiFetch } from "./api.js";
 
 function Facilitators({ selectedFfId, onSelect, onOpenFarmer }) {
   const [ffs, setFfs] = useState([]);
@@ -7,7 +8,7 @@ function Facilitators({ selectedFfId, onSelect, onOpenFarmer }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("http://localhost:8000/ffs/summary")
+    apiFetch("http://localhost:8000/ffs/summary")
       .then((response) => response.json())
       .then((data) => {
         setFfs(data);
@@ -19,7 +20,7 @@ function Facilitators({ selectedFfId, onSelect, onOpenFarmer }) {
     if (selectedFfId === null) {
       return;
     }
-    fetch(`http://localhost:8000/ffs/${selectedFfId}/farmers`)
+    apiFetch(`http://localhost:8000/ffs/${selectedFfId}/farmers`)
       .then((response) => response.json())
       .then((data) => setFarmers(data));
   }, [selectedFfId]);

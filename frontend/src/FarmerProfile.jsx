@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import EditFarmer from "./EditFarmer.jsx";
 import ParticipationChange from "./ParticipationChange.jsx";
+import { apiFetch } from "./api.js";
 
 function FarmerProfile({ farmerId, onBack }) {
   const [farmer, setFarmer] = useState(null);
@@ -10,11 +11,11 @@ function FarmerProfile({ farmerId, onBack }) {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch(`http://localhost:8000/farmers/${farmerId}/changes`)
+    apiFetch(`http://localhost:8000/farmers/${farmerId}/changes`)
       .then((response) => response.json())
       .then((data) => setChanges(data));
 
-    fetch(`http://localhost:8000/farmers/${farmerId}`)
+    apiFetch(`http://localhost:8000/farmers/${farmerId}`)
       .then((response) => {
         if (!response.ok) {
           throw new Error("Could not load this farmer");

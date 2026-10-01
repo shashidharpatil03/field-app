@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { apiFetch } from "./api.js";
 
 function BulkMove() {
   const [lgs, setLgs] = useState([]);
@@ -16,7 +17,7 @@ function BulkMove() {
   const [busy, setBusy] = useState(false);
 
   function loadLgs() {
-    return fetch("http://localhost:8000/lgs")
+    return apiFetch("http://localhost:8000/lgs")
       .then((response) => response.json())
       .then((data) => setLgs(data));
   }
@@ -24,7 +25,7 @@ function BulkMove() {
   useEffect(() => {
     Promise.all([
       loadLgs(),
-      fetch("http://localhost:8000/ffs")
+      apiFetch("http://localhost:8000/ffs")
         .then((response) => response.json())
         .then((data) => setFfs(data)),
     ]).then(() => setLoading(false));
@@ -91,7 +92,7 @@ function BulkMove() {
     setError("");
     setMessage("");
     try {
-      const response = await fetch("http://localhost:8000/lgs/bulk-reassign", {
+      const response = await apiFetch("http://localhost:8000/lgs/bulk-reassign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

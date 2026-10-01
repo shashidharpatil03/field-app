@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useT } from "./i18n.jsx";
 import LanguageToggle from "./LanguageToggle.jsx";
+import { apiFetch } from "./api.js";
 
 // Shows the logo image from public/logos. If the file is missing,
 // it shows the name as plain text instead.
@@ -27,7 +28,7 @@ function Login({ onLogin }) {
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    fetch("http://localhost:8000/users")
+    apiFetch("http://localhost:8000/users")
       .then((response) => response.json())
       .then((data) => setUsers(data))
       .catch(() => setFailed(true));

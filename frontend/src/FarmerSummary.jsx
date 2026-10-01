@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useT } from "./i18n.jsx";
+import { apiFetch } from "./api.js";
 
 // refreshKey changes whenever the screen below has reloaded its data,
 // which makes this summary fetch fresh numbers too.
@@ -8,7 +9,7 @@ function FarmerSummary({ refreshKey }) {
   const [summary, setSummary] = useState(null);
 
   useEffect(() => {
-    fetch("http://localhost:8000/farmers/summary")
+    apiFetch("http://localhost:8000/farmers/summary")
       .then((response) => response.json())
       .then((data) => setSummary(data));
   }, [refreshKey]);

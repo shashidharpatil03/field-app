@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { setApiUser, setUnauthorizedHandler } from "./api.js";
 import { LanguageContext } from "./i18n.jsx";
 import Login from "./Login.jsx";
 import TopBar from "./TopBar.jsx";
@@ -30,7 +31,10 @@ function save(key, value) {
 function App() {
   const [user, setUser] = useState(() => {
     const saved = readSaved("user");
-    return saved ? JSON.parse(saved) : null;
+    const savedUser = saved ? JSON.parse(saved) : null;
+    // Must be set before the first screen asks the server for anything.
+    setApiUser(savedUser ? savedUser.id : null);
+    return savedUser;
   });
   const [lang, setLangState] = useState(readSaved("lang") === "mr" ? "mr" : "en");
   const [module, setModule] = useState(null);
@@ -41,15 +45,22 @@ function App() {
   }
 
   function handleLogin(chosen) {
+    setApiUser(chosen.id);
     setUser(chosen);
     save("user", JSON.stringify(chosen));
   }
 
   function handleLogOut() {
+    setApiUser(null);
     setUser(null);
     setModule(null);
     save("user", null);
   }
+
+  // If the server says "unknown user", go back to the sign-in screen.
+  useEffect(() => {
+    setUnauthorizedHandler(handleLogOut);
+  });
 
   let screen;
   if (user === null) {
@@ -59,7 +70,7 @@ function App() {
     if (module === null) {
       content = <Home onOpen={setModule} />;
     } else if (module === "farmers") {
-      content = <FarmerData onHome={() => setModule(null)} />;
+      content = <FarmerData user={user} onHome={() => setModule(null)} />;
     } else {
       content = (
         <ComingSoon labelKey={`menu_${module}`} onHome={() => setModule(null)} />

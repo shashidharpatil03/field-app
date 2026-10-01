@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { checkForm } from "./farmerRules.js";
+import { apiFetch } from "./api.js";
 
 function EditFarmer({ farmer, onCancel, onSaved }) {
   const [name, setName] = useState(farmer.name);
@@ -23,7 +24,7 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
 
     setSaving(true);
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `http://localhost:8000/farmers/${farmer.id}`,
         {
           method: "PUT",

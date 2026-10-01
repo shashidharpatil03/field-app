@@ -4,7 +4,7 @@ import unicodedata
 from datetime import date, datetime
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -18,8 +18,87 @@ app.add_middleware(
 )
 
 
+def current_user(x_user_id: Optional[int] = Header(default=None)):
+    """Finds out who is asking, from the X-User-Id header the app sends."""
+    if x_user_id is None:
+        raise HTTPException(status_code=401, detail="Please sign in")
+    connection = sqlite3.connect("field.db")
+    row = connection.execute(
+        "SELECT id, name, role, pu_id, ff_id FROM app_users WHERE id = ?",
+        (x_user_id,),
+    ).fetchone()
+    connection.close()
+    if row is None:
+        raise HTTPException(status_code=401, detail="Unknown user")
+    return {
+        "id": row[0],
+        "name": row[1],
+        "role": row[2],
+        "pu_id": row[3],
+        "ff_id": row[4],
+    }
+
+
+def fail(connection, status_code, message, form=False):
+    """Closes the connection and stops the request with an error."""
+    if connection is not None:
+        connection.close()
+    raise HTTPException(
+        status_code=status_code, detail={"form": message} if form else message
+    )
+
+
+def require_manager(user):
+    if user["role"] != "pu_manager":
+        fail(None, 403, "Only the PU manager can do this")
+
+
+def lg_access(connection, user, lg_id):
+    """None if the group does not exist, otherwise True or False."""
+    row = connection.execute(
+        "SELECT pu_id FROM learning_groups WHERE id = ?", (lg_id,)
+    ).fetchone()
+    if row is None:
+        return None
+    if user["role"] == "pu_manager":
+        return row[0] == user["pu_id"]
+    current = connection.execute(
+        "SELECT ff_id FROM assignments WHERE lg_id = ? AND end_date IS NULL",
+        (lg_id,),
+    ).fetchone()
+    return current is not None and current[0] == user["ff_id"]
+
+
+def require_lg(connection, user, lg_id, form=False):
+    allowed = lg_access(connection, user, lg_id)
+    if allowed is None:
+        fail(connection, 404, "Group not found", form)
+    if not allowed:
+        fail(connection, 403, "You do not have access to this group", form)
+
+
+def require_farmer(connection, user, farmer_id, form=False):
+    row = connection.execute(
+        "SELECT lg_id FROM farmers WHERE id = ?", (farmer_id,)
+    ).fetchone()
+    if row is None:
+        fail(connection, 404, "Farmer not found", form)
+    if not lg_access(connection, user, row[0]):
+        fail(connection, 403, "You do not have access to this farmer", form)
+
+
+def require_draft(connection, user, draft_id):
+    row = connection.execute(
+        "SELECT lg_id FROM farmer_drafts WHERE id = ?", (draft_id,)
+    ).fetchone()
+    if row is None:
+        fail(connection, 404, "Draft not found", True)
+    require_lg(connection, user, row[0], True)
+    return row[0]
+
+
 @app.get("/lgs")
-def list_lgs():
+def list_lgs(user: dict = Depends(current_user)):
     connection = sqlite3.connect("field.db")
     connection.row_factory = sqlite3.Row
     rows = connection.execute("""
@@ -45,8 +124,10 @@ def list_lgs():
             AND assignments.end_date IS NULL
         LEFT JOIN facilitators
             ON facilitators.id = assignments.ff_id
+        WHERE (? = 'pu_manager' AND learning_groups.pu_id = ?)
+           OR (? = 'facilitator' AND assignments.ff_id = ?)
         ORDER BY pus.code, learning_groups.lg_number
-    """).fetchall()
+    """, (user["role"], user["pu_id"], user["role"], user["ff_id"])).fetchall()
     connection.close()
     return [dict(row) for row in rows]
 
@@ -67,11 +148,17 @@ def list_users():
 
 
 @app.get("/ffs")
-def list_ffs():
+def list_ffs(user: dict = Depends(current_user)):
     connection = sqlite3.connect("field.db")
     connection.row_factory = sqlite3.Row
     rows = connection.execute(
-        "SELECT id, name, pu_id FROM facilitators ORDER BY name"
+        """
+        SELECT id, name, pu_id FROM facilitators
+        WHERE (? = 'pu_manager' AND pu_id = ?)
+           OR (? = 'facilitator' AND id = ?)
+        ORDER BY name
+        """,
+        (user["role"], user["pu_id"], user["role"], user["ff_id"]),
     ).fetchall()
     connection.close()
     return [dict(row) for row in rows]
@@ -82,7 +169,10 @@ class ReassignRequest(BaseModel):
 
 
 @app.post("/lgs/{lg_id}/reassign")
-def reassign_lg(lg_id: int, body: ReassignRequest):
+def reassign_lg(
+    lg_id: int, body: ReassignRequest, user: dict = Depends(current_user)
+):
+    require_manager(user)
     connection = sqlite3.connect("field.db")
 
     lg = connection.execute(
@@ -95,6 +185,8 @@ def reassign_lg(lg_id: int, body: ReassignRequest):
         connection.close()
         raise HTTPException(status_code=404, detail="Group or facilitator not found")
 
+    if lg[1] != user["pu_id"]:
+        fail(connection, 403, "You do not have access to this group")
     if lg[1] != ff[1]:
         connection.close()
         raise HTTPException(
@@ -125,9 +217,10 @@ def reassign_lg(lg_id: int, body: ReassignRequest):
     return {"message": "Moved"}
 
 @app.get("/lgs/{lg_id}/assignments")
-def assignment_history(lg_id: int):
+def assignment_history(lg_id: int, user: dict = Depends(current_user)):
     connection = sqlite3.connect("field.db")
     connection.row_factory = sqlite3.Row
+    require_lg(connection, user, lg_id)
     rows = connection.execute(
         """
         SELECT
@@ -147,9 +240,12 @@ def assignment_history(lg_id: int):
 
 
 @app.get("/lgs/{lg_id}/farmers")
-def list_farmers(lg_id: int, include_dropped: bool = False):
+def list_farmers(
+    lg_id: int, include_dropped: bool = False, user: dict = Depends(current_user)
+):
     connection = sqlite3.connect("field.db")
     connection.row_factory = sqlite3.Row
+    require_lg(connection, user, lg_id)
     rows = connection.execute(
         """
         SELECT
@@ -176,23 +272,31 @@ def list_farmers(lg_id: int, include_dropped: bool = False):
 
 
 @app.get("/farmers/summary")
-def farmers_summary():
+def farmers_summary(user: dict = Depends(current_user)):
     connection = sqlite3.connect("field.db")
     row = connection.execute(
         """
-        SELECT COUNT(*), COALESCE(SUM(growing_cotton), 0)
+        SELECT COUNT(*), COALESCE(SUM(farmers.growing_cotton), 0)
         FROM farmers
-        WHERE participation = 'continuing'
-        """
+        JOIN learning_groups ON learning_groups.id = farmers.lg_id
+        LEFT JOIN assignments
+            ON assignments.lg_id = farmers.lg_id
+            AND assignments.end_date IS NULL
+        WHERE farmers.participation = 'continuing'
+        AND ((? = 'pu_manager' AND learning_groups.pu_id = ?)
+          OR (? = 'facilitator' AND assignments.ff_id = ?))
+        """,
+        (user["role"], user["pu_id"], user["role"], user["ff_id"]),
     ).fetchone()
     connection.close()
     return {"continuing": row[0], "growing_cotton": row[1]}
 
 
 @app.get("/farmers/{farmer_id}")
-def get_farmer(farmer_id: int):
+def get_farmer(farmer_id: int, user: dict = Depends(current_user)):
     connection = sqlite3.connect("field.db")
     connection.row_factory = sqlite3.Row
+    require_farmer(connection, user, farmer_id)
     row = connection.execute(
         """
         SELECT
@@ -276,13 +380,17 @@ def check_draft(name, gender, mobile=""):
     return errors
 
 
-def mobile_owner(connection, mobile, except_farmer_id=0):
-    """Returns the code of another farmer who already uses this mobile, or None."""
+def mobile_owner(connection, user, mobile, except_farmer_id=0):
+    """Returns an error message if another farmer already uses this mobile.
+
+    The other farmer's code is only shown if this user may see that farmer.
+    """
     row = connection.execute(
         """
         SELECT pus.code
             || '-' || printf('%03d', learning_groups.lg_number)
-            || '-' || printf('%02d', farmers.farmer_number)
+            || '-' || printf('%02d', farmers.farmer_number),
+            farmers.lg_id
         FROM farmers
         JOIN learning_groups ON learning_groups.id = farmers.lg_id
         JOIN pus ON pus.id = learning_groups.pu_id
@@ -290,17 +398,18 @@ def mobile_owner(connection, mobile, except_farmer_id=0):
         """,
         (mobile, except_farmer_id),
     ).fetchone()
-    return row[0] if row else None
-
-
-def mobile_taken_message(code):
-    return f"This mobile number is already used by farmer {code}"
+    if row is None:
+        return None
+    if lg_access(connection, user, row[1]):
+        return f"This mobile number is already used by farmer {row[0]}"
+    return "This mobile number is already used by another farmer"
 
 
 @app.get("/lgs/{lg_id}/drafts")
-def list_drafts(lg_id: int):
+def list_drafts(lg_id: int, user: dict = Depends(current_user)):
     connection = sqlite3.connect("field.db")
     connection.row_factory = sqlite3.Row
+    require_lg(connection, user, lg_id)
     rows = connection.execute(
         """
         SELECT id, name, gender, growing_cotton, mobile, updated_at
@@ -315,7 +424,7 @@ def list_drafts(lg_id: int):
 
 
 @app.post("/lgs/{lg_id}/drafts")
-def create_draft(lg_id: int, body: DraftBody):
+def create_draft(lg_id: int, body: DraftBody, user: dict = Depends(current_user)):
     name = " ".join(body.name.split())
     mobile = body.mobile.strip()
     errors = check_draft(name, body.gender, mobile)
@@ -323,12 +432,7 @@ def create_draft(lg_id: int, body: DraftBody):
         raise HTTPException(status_code=400, detail=errors)
 
     connection = sqlite3.connect("field.db")
-    lg = connection.execute(
-        "SELECT id FROM learning_groups WHERE id = ?", (lg_id,)
-    ).fetchone()
-    if lg is None:
-        connection.close()
-        raise HTTPException(status_code=404, detail={"form": "Group not found"})
+    require_lg(connection, user, lg_id, True)
 
     growing = None if body.growing_cotton is None else int(body.growing_cotton)
     cursor = connection.execute(
@@ -347,7 +451,7 @@ def create_draft(lg_id: int, body: DraftBody):
 
 
 @app.put("/drafts/{draft_id}")
-def update_draft(draft_id: int, body: DraftBody):
+def update_draft(draft_id: int, body: DraftBody, user: dict = Depends(current_user)):
     name = " ".join(body.name.split())
     mobile = body.mobile.strip()
     errors = check_draft(name, body.gender, mobile)
@@ -355,6 +459,7 @@ def update_draft(draft_id: int, body: DraftBody):
         raise HTTPException(status_code=400, detail=errors)
 
     connection = sqlite3.connect("field.db")
+    require_draft(connection, user, draft_id)
     growing = None if body.growing_cotton is None else int(body.growing_cotton)
     cursor = connection.execute(
         """
@@ -374,8 +479,9 @@ def update_draft(draft_id: int, body: DraftBody):
 
 
 @app.delete("/drafts/{draft_id}")
-def delete_draft(draft_id: int):
+def delete_draft(draft_id: int, user: dict = Depends(current_user)):
     connection = sqlite3.connect("field.db")
+    require_draft(connection, user, draft_id)
     cursor = connection.execute(
         "DELETE FROM farmer_drafts WHERE id = ?", (draft_id,)
     )
@@ -388,8 +494,9 @@ def delete_draft(draft_id: int):
 
 
 @app.post("/drafts/{draft_id}/submit")
-def submit_draft(draft_id: int):
+def submit_draft(draft_id: int, user: dict = Depends(current_user)):
     connection = sqlite3.connect("field.db")
+    require_draft(connection, user, draft_id)
 
     draft = connection.execute(
         "SELECT lg_id, name, gender, growing_cotton, mobile "
@@ -409,12 +516,10 @@ def submit_draft(draft_id: int):
         raise HTTPException(status_code=400, detail=errors)
 
     if mobile != "":
-        owner = mobile_owner(connection, mobile)
+        owner = mobile_owner(connection, user, mobile)
         if owner is not None:
             connection.close()
-            raise HTTPException(
-                status_code=400, detail={"mobile": mobile_taken_message(owner)}
-            )
+            raise HTTPException(status_code=400, detail={"mobile": owner})
 
     try:
         connection.execute(
@@ -471,7 +576,9 @@ class FarmerEdit(BaseModel):
 
 
 @app.put("/farmers/{farmer_id}")
-def edit_farmer(farmer_id: int, body: FarmerEdit):
+def edit_farmer(
+    farmer_id: int, body: FarmerEdit, user: dict = Depends(current_user)
+):
     name = " ".join(body.name.split())
     reason = " ".join(body.reason.split())
     mobile = body.mobile.strip()
@@ -483,6 +590,7 @@ def edit_farmer(farmer_id: int, body: FarmerEdit):
         raise HTTPException(status_code=400, detail=errors)
 
     connection = sqlite3.connect("field.db")
+    require_farmer(connection, user, farmer_id, True)
     old = connection.execute(
         "SELECT name, gender, growing_cotton, mobile FROM farmers WHERE id = ?",
         (farmer_id,),
@@ -510,12 +618,10 @@ def edit_farmer(farmer_id: int, body: FarmerEdit):
         raise HTTPException(status_code=400, detail={"form": "Nothing was changed"})
 
     if mobile != "" and (old[3] or "") != mobile:
-        owner = mobile_owner(connection, mobile, farmer_id)
+        owner = mobile_owner(connection, user, mobile, farmer_id)
         if owner is not None:
             connection.close()
-            raise HTTPException(
-                status_code=400, detail={"mobile": mobile_taken_message(owner)}
-            )
+            raise HTTPException(status_code=400, detail={"mobile": owner})
 
     today = date.today().isoformat()
     try:
@@ -546,9 +652,10 @@ def edit_farmer(farmer_id: int, body: FarmerEdit):
 
 
 @app.get("/farmers/{farmer_id}/changes")
-def farmer_changes(farmer_id: int):
+def farmer_changes(farmer_id: int, user: dict = Depends(current_user)):
     connection = sqlite3.connect("field.db")
     connection.row_factory = sqlite3.Row
+    require_farmer(connection, user, farmer_id)
     rows = connection.execute(
         """
         SELECT id, field, old_value, new_value, changed_on, reason
@@ -599,13 +706,16 @@ def build_reason(participation, reason, note):
 
 
 @app.post("/farmers/{farmer_id}/participation")
-def change_participation(farmer_id: int, body: ParticipationChange):
+def change_participation(
+    farmer_id: int, body: ParticipationChange, user: dict = Depends(current_user)
+):
     note = " ".join(body.note.split())
     errors = check_participation(body.participation, body.reason, note)
     if errors:
         raise HTTPException(status_code=400, detail=errors)
 
     connection = sqlite3.connect("field.db")
+    require_farmer(connection, user, farmer_id, True)
     row = connection.execute(
         "SELECT participation FROM farmers WHERE id = ?", (farmer_id,)
     ).fetchone()
@@ -646,7 +756,9 @@ class BulkParticipation(BaseModel):
 
 
 @app.post("/farmers/bulk-participation")
-def bulk_participation(body: BulkParticipation):
+def bulk_participation(
+    body: BulkParticipation, user: dict = Depends(current_user)
+):
     note = " ".join(body.note.split())
     errors = check_participation(body.participation, body.reason, note)
 
@@ -668,6 +780,8 @@ def bulk_participation(body: BulkParticipation):
         raise HTTPException(
             status_code=404, detail={"form": "Some of these farmers were not found"}
         )
+    for farmer_id in ids:
+        require_farmer(connection, user, farmer_id, True)
 
     to_change = [row for row in rows if row[1] != body.participation]
     if len(to_change) == 0:
@@ -704,7 +818,8 @@ class BulkReassign(BaseModel):
 
 
 @app.post("/lgs/bulk-reassign")
-def bulk_reassign(body: BulkReassign):
+def bulk_reassign(body: BulkReassign, user: dict = Depends(current_user)):
+    require_manager(user)
     ids = list(set(body.lg_ids))
     if len(ids) == 0:
         raise HTTPException(status_code=400, detail="Select at least one group")
@@ -726,6 +841,8 @@ def bulk_reassign(body: BulkReassign):
     if len(groups) != len(ids):
         connection.close()
         raise HTTPException(status_code=404, detail="Some groups were not found")
+    if ff[1] != user["pu_id"] or any(group[1] != user["pu_id"] for group in groups):
+        fail(connection, 403, "You can only move groups inside your own PU")
     if any(group[1] != ff[1] for group in groups):
         connection.close()
         raise HTTPException(
@@ -768,7 +885,8 @@ def bulk_reassign(body: BulkReassign):
 
 
 @app.get("/ffs/summary")
-def ff_summary():
+def ff_summary(user: dict = Depends(current_user)):
+    require_manager(user)
     connection = sqlite3.connect("field.db")
     connection.row_factory = sqlite3.Row
     rows = connection.execute(
@@ -787,24 +905,29 @@ def ff_summary():
              AND farmers.participation = 'continuing') AS farmer_count
         FROM facilitators
         JOIN pus ON pus.id = facilitators.pu_id
+        WHERE facilitators.pu_id = ?
         ORDER BY pus.code, facilitators.name
-        """
+        """,
+        (user["pu_id"],),
     ).fetchall()
     connection.close()
     return [dict(row) for row in rows]
 
 
 @app.get("/ffs/{ff_id}/farmers")
-def ff_farmers(ff_id: int):
+def ff_farmers(ff_id: int, user: dict = Depends(current_user)):
+    require_manager(user)
     connection = sqlite3.connect("field.db")
     connection.row_factory = sqlite3.Row
 
     ff = connection.execute(
-        "SELECT id FROM facilitators WHERE id = ?", (ff_id,)
+        "SELECT id, pu_id FROM facilitators WHERE id = ?", (ff_id,)
     ).fetchone()
     if ff is None:
         connection.close()
         raise HTTPException(status_code=404, detail="Facilitator not found")
+    if ff[1] != user["pu_id"]:
+        fail(connection, 403, "You do not have access to this facilitator")
 
     rows = connection.execute(
         """

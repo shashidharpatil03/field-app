@@ -6,13 +6,12 @@ import BulkMove from "./BulkMove.jsx";
 import BulkParticipation from "./BulkParticipation.jsx";
 import FarmerSummary from "./FarmerSummary.jsx";
 import { useT } from "./i18n.jsx";
+import { apiFetch } from "./api.js";
 
-function FarmerData({ onHome }) {
+function FarmerData({ onHome, user }) {
   const t = useT();
+  const isManager = user.role === "pu_manager";
   const [lgs, setLgs] = useState([]);
-  const [ffs, setFfs] = useState([]);
-  const [movingId, setMovingId] = useState(null);
-  const [newFfId, setNewFfId] = useState("");
   const [message, setMessage] = useState("");
   const [historyFor, setHistoryFor] = useState(null);
   const [history, setHistory] = useState([]);
@@ -30,30 +29,21 @@ function FarmerData({ onHome }) {
   const [drafts, setDrafts] = useState([]);
 
   function loadLgs() {
-    fetch("http://localhost:8000/lgs")
+    apiFetch("http://localhost:8000/lgs")
       .then((response) => response.json())
       .then((data) => setLgs(data));
   }
 
   useEffect(() => {
     loadLgs();
-    fetch("http://localhost:8000/ffs")
-      .then((response) => response.json())
-      .then((data) => setFfs(data));
   }, []);
-
-  function startMove(lgId) {
-    setMovingId(lgId);
-    setNewFfId("");
-    setMessage("");
-  }
 
   function toggleHistory(lgId) {
     if (historyFor === lgId) {
       setHistoryFor(null);
       return;
     }
-    fetch(`http://localhost:8000/lgs/${lgId}/assignments`)
+    apiFetch(`http://localhost:8000/lgs/${lgId}/assignments`)
       .then((response) => response.json())
       .then((data) => {
         setHistory(data);
@@ -67,7 +57,9 @@ function FarmerData({ onHome }) {
       setFarmersFor(null);
       return;
     }
-    fetch(`http://localhost:8000/lgs/${lgId}/farmers?include_dropped=${showDropped}`)
+    apiFetch(
+      `http://localhost:8000/lgs/${lgId}/farmers?include_dropped=${showDropped}`,
+    )
       .then((response) => response.json())
       .then((data) => {
         setFarmers(data);
@@ -77,7 +69,9 @@ function FarmerData({ onHome }) {
 
   function changeShowDropped(lgId, checked) {
     setShowDropped(checked);
-    fetch(`http://localhost:8000/lgs/${lgId}/farmers?include_dropped=${checked}`)
+    apiFetch(
+      `http://localhost:8000/lgs/${lgId}/farmers?include_dropped=${checked}`,
+    )
       .then((response) => response.json())
       .then((data) => setFarmers(data));
   }
@@ -87,7 +81,7 @@ function FarmerData({ onHome }) {
       setDraftsFor(null);
       return;
     }
-    fetch(`http://localhost:8000/lgs/${lgId}/drafts`)
+    apiFetch(`http://localhost:8000/lgs/${lgId}/drafts`)
       .then((response) => response.json())
       .then((data) => {
         setDrafts(data);
@@ -96,8 +90,10 @@ function FarmerData({ onHome }) {
   }
 
   async function deleteDraft(lgId, draftId) {
-    await fetch(`http://localhost:8000/drafts/${draftId}`, { method: "DELETE" });
-    const response = await fetch(`http://localhost:8000/lgs/${lgId}/drafts`);
+    await apiFetch(`http://localhost:8000/drafts/${draftId}`, {
+      method: "DELETE",
+    });
+    const response = await apiFetch(`http://localhost:8000/lgs/${lgId}/drafts`);
     setDrafts(await response.json());
     loadLgs();
   }
@@ -105,8 +101,8 @@ function FarmerData({ onHome }) {
   function backFromProfile() {
     setProfileId(null);
     if (farmersFor !== null) {
-      fetch(
-        `http://localhost:8000/lgs/${farmersFor}/farmers?include_dropped=${showDropped}`
+      apiFetch(
+        `http://localhost:8000/lgs/${farmersFor}/farmers?include_dropped=${showDropped}`,
       )
         .then((response) => response.json())
         .then((data) => setFarmers(data));
@@ -134,7 +130,7 @@ function FarmerData({ onHome }) {
 
   function selectAllContinuing() {
     setSelectedIds(
-      farmers.filter((f) => f.participation === "continuing").map((f) => f.id)
+      farmers.filter((f) => f.participation === "continuing").map((f) => f.id),
     );
   }
 
@@ -142,8 +138,8 @@ function FarmerData({ onHome }) {
     stopSelecting();
     setMessage(text);
     loadLgs();
-    fetch(
-      `http://localhost:8000/lgs/${farmersFor}/farmers?include_dropped=${showDropped}`
+    apiFetch(
+      `http://localhost:8000/lgs/${farmersFor}/farmers?include_dropped=${showDropped}`,
     )
       .then((response) => response.json())
       .then((data) => setFarmers(data));
@@ -153,28 +149,6 @@ function FarmerData({ onHome }) {
   function closeRegister() {
     setRegisterLg(null);
     setRegisterDraft(null);
-  }
-
-  async function confirmMove(lg) {
-    const response = await fetch(
-      `http://localhost:8000/lgs/${lg.id}/reassign`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ new_ff_id: Number(newFfId) }),
-      }
-    );
-    const data = await response.json();
-
-    if (response.ok) {
-      const newFf = ffs.find((f) => f.id === Number(newFfId));
-      setMessage(t("movedTo", { lg: lg.lg_code, name: newFf.name }));
-      setMovingId(null);
-      setHistoryFor(null);
-      loadLgs();
-    } else {
-      setMessage(data.detail);
-    }
   }
 
   if (profileId !== null) {
@@ -213,30 +187,32 @@ function FarmerData({ onHome }) {
 
       <FarmerSummary refreshKey={lgs} />
 
-      <div className="tabs">
-        <button
-          className={view === "lgs" ? "tab active" : "tab"}
-          onClick={() => setView("lgs")}
-        >
-          {t("tabLgs")}
-        </button>
-        <button
-          className={view === "ffs" ? "tab active" : "tab"}
-          onClick={() => setView("ffs")}
-        >
-          {t("tabFfs")}
-        </button>
-        <button
-          className={view === "move" ? "tab active" : "tab"}
-          onClick={() => setView("move")}
-        >
-          {t("tabMove")}
-        </button>
-      </div>
+      {isManager && (
+        <div className="tabs">
+          <button
+            className={view === "lgs" ? "tab active" : "tab"}
+            onClick={() => setView("lgs")}
+          >
+            {t("tabLgs")}
+          </button>
+          <button
+            className={view === "ffs" ? "tab active" : "tab"}
+            onClick={() => setView("ffs")}
+          >
+            {t("tabFfs")}
+          </button>
+          <button
+            className={view === "move" ? "tab active" : "tab"}
+            onClick={() => setView("move")}
+          >
+            {t("tabMove")}
+          </button>
+        </div>
+      )}
     </div>
   );
 
-  if (view === "move") {
+  if (isManager && view === "move") {
     return (
       <div className="page">
         {tabs}
@@ -245,7 +221,7 @@ function FarmerData({ onHome }) {
     );
   }
 
-  if (view === "ffs") {
+  if (isManager && view === "ffs") {
     return (
       <div className="page">
         {tabs}
@@ -267,32 +243,12 @@ function FarmerData({ onHome }) {
       {lgs.map((lg) => (
         <div className="card" key={lg.id}>
           <h3>{lg.lg_code}</h3>
-          <p>{lg.village} · {lg.farmer_count} {t("farmers")}</p>
-          <p>{t("facilitator")} {lg.ff_name ?? t("nobodyYet")}</p>
-
-          {movingId === lg.id ? (
-            <div>
-              <select
-                value={newFfId}
-                onChange={(e) => setNewFfId(e.target.value)}
-              >
-                <option value="">{t("chooseFf")}</option>
-                {ffs
-                  .filter((f) => f.pu_id === lg.pu_id && f.name !== lg.ff_name)
-                  .map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name}
-                    </option>
-                  ))}
-              </select>
-              <button onClick={() => confirmMove(lg)} disabled={newFfId === ""}>
-                {t("confirmMove")}
-              </button>
-              <button onClick={() => setMovingId(null)}>{t("cancel")}</button>
-            </div>
-          ) : (
-            <button onClick={() => startMove(lg.id)}>{t("moveToFf")}</button>
-          )}
+          <p>
+            {lg.village} · {lg.farmer_count} {t("farmers")}
+          </p>
+          <p>
+            {t("facilitator")} {lg.ff_name ?? t("nobodyYet")}
+          </p>
 
           <button onClick={() => toggleHistory(lg.id)}>
             {historyFor === lg.id ? t("hideHistory") : t("history")}
@@ -310,7 +266,9 @@ function FarmerData({ onHome }) {
             </div>
           )}
 
-          <button onClick={() => setRegisterLg(lg)}>{t("registerFarmer")}</button>
+          <button onClick={() => setRegisterLg(lg)}>
+            {t("registerFarmer")}
+          </button>
 
           {lg.draft_count > 0 && (
             <button onClick={() => toggleDrafts(lg.id)}>
@@ -326,7 +284,9 @@ function FarmerData({ onHome }) {
                 <li key={d.id}>
                   <strong>{d.name || t("unnamedFarmer")}</strong>
                   <br />
-                  <small>{t("saved")} {d.updated_at.replace("T", " ")}</small>
+                  <small>
+                    {t("saved")} {d.updated_at.replace("T", " ")}
+                  </small>
                   <br />
                   <button
                     onClick={() => {
@@ -344,7 +304,7 @@ function FarmerData({ onHome }) {
             </ul>
           )}
 
-                    <button onClick={() => toggleFarmers(lg.id)}>
+          <button onClick={() => toggleFarmers(lg.id)}>
             {farmersFor === lg.id ? t("hideFarmers") : t("viewFarmers")}
           </button>
 
@@ -395,7 +355,10 @@ function FarmerData({ onHome }) {
                       <span>
                         <strong>{f.farmer_code}</strong> · {f.name}
                         {f.participation === "dropped_out" && (
-                          <span className="badge dropped_out"> {t("droppedOut")}</span>
+                          <span className="badge dropped_out">
+                            {" "}
+                            {t("droppedOut")}
+                          </span>
                         )}
                       </span>
                     </label>
@@ -406,12 +369,17 @@ function FarmerData({ onHome }) {
                     >
                       <strong>{f.farmer_code}</strong> · {f.name}
                       {f.participation === "dropped_out" && (
-                        <span className="badge dropped_out"> {t("droppedOut")}</span>
+                        <span className="badge dropped_out">
+                          {" "}
+                          {t("droppedOut")}
+                        </span>
                       )}
                       <br />
                       <small>
                         {t(`gender_${f.gender}`)} ·{" "}
-                        {f.growing_cotton ? t("growingCotton") : t("notGrowingCotton")}
+                        {f.growing_cotton
+                          ? t("growingCotton")
+                          : t("notGrowingCotton")}
                       </small>
                     </button>
                   )}

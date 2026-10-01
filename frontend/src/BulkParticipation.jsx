@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiFetch } from "./api.js";
 
 const REASONS = [
   "Moved away",
@@ -36,7 +37,7 @@ function BulkParticipation({ farmers, onDone }) {
 
     setSaving(true);
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         "http://localhost:8000/farmers/bulk-participation",
         {
           method: "POST",

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { checkForm } from "./farmerRules.js";
+import { apiFetch } from "./api.js";
 
 function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
   const [name, setName] = useState(draft ? draft.name : "");
@@ -32,7 +33,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
       draftId === null
         ? `http://localhost:8000/lgs/${lgId}/drafts`
         : `http://localhost:8000/drafts/${draftId}`;
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
       method: draftId === null ? "POST" : "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(formData()),
@@ -90,7 +91,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
         return;
       }
 
-      const response = await fetch(
+      const response = await apiFetch(
         `http://localhost:8000/drafts/${saved.id}/submit`,
         { method: "POST" }
       );
