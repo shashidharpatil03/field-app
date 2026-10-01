@@ -150,3 +150,44 @@ def list_farmers(lg_id: int):
     ).fetchall()
     connection.close()
     return [dict(row) for row in rows]
+
+
+@app.get("/farmers/{farmer_id}")
+def get_farmer(farmer_id: int):
+    connection = sqlite3.connect("field.db")
+    connection.row_factory = sqlite3.Row
+    row = connection.execute(
+        """
+        SELECT
+            farmers.id,
+            pus.code
+                || '-' || printf('%03d', learning_groups.lg_number)
+                || '-' || printf('%02d', farmers.farmer_number)
+                AS farmer_code,
+            pus.code
+                || '-' || printf('%03d', learning_groups.lg_number)
+                AS lg_code,
+            farmers.name,
+            farmers.gender,
+            farmers.growing_cotton,
+            farmers.participation,
+            villages.name AS village,
+            pus.name AS pu_name,
+            facilitators.name AS ff_name
+        FROM farmers
+        JOIN learning_groups ON learning_groups.id = farmers.lg_id
+        JOIN pus ON pus.id = learning_groups.pu_id
+        JOIN villages ON villages.id = learning_groups.village_id
+        LEFT JOIN assignments
+            ON assignments.lg_id = learning_groups.id
+            AND assignments.end_date IS NULL
+        LEFT JOIN facilitators
+            ON facilitators.id = assignments.ff_id
+        WHERE farmers.id = ?
+        """,
+        (farmer_id,),
+    ).fetchone()
+    connection.close()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Farmer not found")
+    return dict(row)

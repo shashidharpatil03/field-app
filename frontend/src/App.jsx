@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import FarmerProfile from "./FarmerProfile.jsx";
 
 function App() {
   const [lgs, setLgs] = useState([]);
@@ -10,6 +11,7 @@ function App() {
   const [history, setHistory] = useState([]);
   const [farmersFor, setFarmersFor] = useState(null); // NEW
   const [farmers, setFarmers] = useState([]); // NEW
+  const [profileId, setProfileId] = useState(null);
 
   function loadLgs() {
     fetch("http://localhost:8000/lgs")
@@ -79,6 +81,14 @@ function App() {
     }
   }
 
+  if (profileId !== null) {
+    return (
+      <div className="page">
+        <FarmerProfile farmerId={profileId} onBack={() => setProfileId(null)} />
+      </div>
+    );
+  }
+
   return (
     <div className="page">
       <h1>Learning groups</h1>
@@ -139,12 +149,17 @@ function App() {
             <ul className="farmers">
               {farmers.map((f) => (
                 <li key={f.id}>
-                  <strong>{f.farmer_code}</strong> · {f.name}
-                  <br />
-                  <small>
-                    {f.gender} ·{" "}
-                    {f.growing_cotton ? "Growing cotton" : "Not growing cotton"}
-                  </small>
+                  <button
+                    className="farmer-link"
+                    onClick={() => setProfileId(f.id)}
+                  >
+                    <strong>{f.farmer_code}</strong> · {f.name}
+                    <br />
+                    <small>
+                      {f.gender} ·{" "}
+                      {f.growing_cotton ? "Growing cotton" : "Not growing cotton"}
+                    </small>
+                  </button>
                 </li>
               ))}
             </ul>

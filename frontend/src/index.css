@@ -83,3 +83,53 @@ select {
 .farmers small {
   color: #5d6963;
 }
+
+.farmer-link {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  color: inherit;
+}
+
+.profile-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #d5ddd8;
+}
+
+.profile-row:last-child {
+  border-bottom: none;
+}
+
+.profile-row .label {
+  color: #5d6963;
+}
+
+.profile-row .value {
+  font-weight: 600;
+  text-align: right;
+}
+
+.badge {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.badge.continuing {
+  background: #d9f0e3;
+  color: #164e3a;
+}
+
+.badge.dropped_out {
+  background: #eceff1;
+  color: #455a64;
+}
