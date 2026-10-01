@@ -120,7 +120,7 @@ function BulkMove() {
 
   return (
     <div>
-      <h1>Move groups</h1>
+      <h2>Move groups</h2>
       <p>Choose learning groups and give them to another facilitator.</p>
 
       {message && <p className="message">{message}</p>}

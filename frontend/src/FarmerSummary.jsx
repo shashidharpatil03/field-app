@@ -11,7 +11,10 @@ function FarmerSummary({ refreshKey }) {
   useEffect(() => {
     apiFetch("http://localhost:8000/farmers/summary")
       .then((response) => response.json())
-      .then((data) => setSummary(data));
+      .then((data) => setSummary(data))
+      .catch(() => {
+        // No signal: keep showing the last numbers (or dashes).
+      });
   }, [refreshKey]);
 
   return (

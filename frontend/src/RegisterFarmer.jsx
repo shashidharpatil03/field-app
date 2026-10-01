@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { checkForm } from "./farmerRules.js";
 import { apiFetch } from "./api.js";
+import { addPending, isNetworkError } from "./offline.js";
 
 function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
   const [name, setName] = useState(draft ? draft.name : "");
@@ -25,6 +26,27 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
       growing_cotton: growingCotton === "" ? null : growingCotton === "yes",
       mobile: mobile,
     };
+  }
+
+  // No signal: keep the answers on this phone, to be sent from Sync later.
+  function keepOnPhone(savedDraftId, submit) {
+    const kept = addPending({
+      lgId: lgId,
+      lgCode: lgCode,
+      draftId: savedDraftId,
+      data: formData(),
+      submit: submit,
+    });
+    if (!kept) {
+      setErrors({
+        form: "No connection, and this phone has no space to keep it. Please free some space and try again.",
+      });
+      return false;
+    }
+    onDone(
+      "No connection, so this is saved on this phone. Open Sync when you have signal to send it."
+    );
+    return true;
   }
 
   // Saves the current answers as a draft. Returns { id } or { errors }.
@@ -65,8 +87,13 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
         onDone("Draft saved. You can continue it later from the Drafts button.");
         return;
       }
-    } catch {
-      setErrors({ form: "Could not reach the server. Please try again." });
+    } catch (error) {
+      if (isNetworkError(error) && keepOnPhone(draftId, false)) {
+        return;
+      }
+      if (!isNetworkError(error)) {
+        setErrors({ form: "Something went wrong. Please try again." });
+      }
     }
     setBusy(false);
   }
@@ -82,6 +109,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
 
   async function handleSubmit() {
     setBusy(true);
+    let savedId = draftId;
     try {
       const saved = await saveDraft();
       if (saved.errors) {
@@ -90,6 +118,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
         setBusy(false);
         return;
       }
+      savedId = saved.id;
 
       const response = await apiFetch(
         `http://localhost:8000/drafts/${saved.id}/submit`,
@@ -103,8 +132,15 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
       }
       setErrors(typeof data.detail === "object" ? data.detail : {});
       setStep("form");
-    } catch {
-      setErrors({ form: "Could not reach the server. Please try again." });
+    } catch (error) {
+      if (isNetworkError(error) && keepOnPhone(savedId, true)) {
+        return;
+      }
+      setErrors({
+        form: isNetworkError(error)
+          ? "Could not save. Please try again."
+          : "Something went wrong. Please try again.",
+      });
       setStep("form");
     }
     setBusy(false);

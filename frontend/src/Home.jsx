@@ -1,20 +1,30 @@
 import { useT } from "./i18n.jsx";
-import { FarmerIcon, PracticeIcon, CapacityIcon, RirIcon } from "./icons.jsx";
+import SyncStrip from "./SyncStrip.jsx";
+import {
+  FarmerIcon,
+  PracticeIcon,
+  CapacityIcon,
+  RirIcon,
+  PuIcon,
+} from "./icons.jsx";
 
 const MODULES = [
   { id: "farmers", labelKey: "menu_farmers", Icon: FarmerIcon },
   { id: "practice", labelKey: "menu_practice", Icon: PracticeIcon },
   { id: "capacity", labelKey: "menu_capacity", Icon: CapacityIcon },
   { id: "rir", labelKey: "menu_rir", Icon: RirIcon },
+  { id: "pu", labelKey: "menu_pu", Icon: PuIcon, managerOnly: true },
 ];
 
-function Home({ onOpen }) {
+function Home({ onOpen, user }) {
   const t = useT();
 
   return (
-    <div className="page">
+    <div className="page home-page">
       <div className="menu">
-        {MODULES.map((m) => (
+        {MODULES.filter(
+          (m) => !m.managerOnly || user.role === "pu_manager",
+        ).map((m) => (
           <button
             key={m.id}
             className={`menu-tile tile-${m.id}`}
@@ -24,9 +34,12 @@ function Home({ onOpen }) {
               <m.Icon />
             </span>
             <span className="menu-label">{t(m.labelKey)}</span>
+            <span className="menu-sub">{t(`${m.labelKey}_sub`)}</span>
           </button>
         ))}
       </div>
+
+      <SyncStrip onOpen={() => onOpen("sync")} />
     </div>
   );
 }

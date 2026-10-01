@@ -12,16 +12,29 @@ export function setUnauthorizedHandler(handler) {
   onUnauthorized = handler;
 }
 
+export function getApiUser() {
+  return currentUserId;
+}
+
+// On a poor connection a request can hang for minutes. After this long we
+// give up, and the caller treats it like being offline.
+const TIMEOUT_MS = 20000;
+
 export function apiFetch(url, options = {}) {
   const headers = { ...(options.headers || {}) };
   if (currentUserId !== null) {
     headers["X-User-Id"] = String(currentUserId);
   }
 
-  return fetch(url, { ...options, headers }).then((response) => {
-    if (response.status === 401) {
-      onUnauthorized();
-    }
-    return response;
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  return fetch(url, { ...options, headers, signal: controller.signal })
+    .then((response) => {
+      if (response.status === 401) {
+        onUnauthorized();
+      }
+      return response;
+    })
+    .finally(() => clearTimeout(timer));
 }

@@ -24,12 +24,20 @@ def current_user(x_user_id: Optional[int] = Header(default=None)):
         raise HTTPException(status_code=401, detail="Please sign in")
     connection = sqlite3.connect("field.db")
     row = connection.execute(
-        "SELECT id, name, role, pu_id, ff_id FROM app_users WHERE id = ?",
+        """
+        SELECT app_users.id, app_users.name, app_users.role, app_users.pu_id,
+               app_users.ff_id, facilitators.active
+        FROM app_users
+        LEFT JOIN facilitators ON facilitators.id = app_users.ff_id
+        WHERE app_users.id = ?
+        """,
         (x_user_id,),
     ).fetchone()
     connection.close()
     if row is None:
         raise HTTPException(status_code=401, detail="Unknown user")
+    if row[2] == "facilitator" and row[5] == 0:
+        raise HTTPException(status_code=401, detail="This account is no longer active")
     return {
         "id": row[0],
         "name": row[1],
@@ -108,6 +116,7 @@ def list_lgs(user: dict = Depends(current_user)):
             pus.name AS pu_name,
             pus.code || '-' || printf('%03d', learning_groups.lg_number)
                 AS lg_code,
+            villages.id AS village_id,
             villages.name AS village,
             (SELECT COUNT(*) FROM farmers
              WHERE farmers.lg_id = learning_groups.id
@@ -140,6 +149,8 @@ def list_users():
         SELECT app_users.id, app_users.name, app_users.role, pus.name AS pu_name
         FROM app_users
         JOIN pus ON pus.id = app_users.pu_id
+        LEFT JOIN facilitators ON facilitators.id = app_users.ff_id
+        WHERE app_users.ff_id IS NULL OR facilitators.active = 1
         ORDER BY app_users.role DESC, app_users.name
         """
     ).fetchall()
@@ -154,8 +165,9 @@ def list_ffs(user: dict = Depends(current_user)):
     rows = connection.execute(
         """
         SELECT id, name, pu_id FROM facilitators
-        WHERE (? = 'pu_manager' AND pu_id = ?)
-           OR (? = 'facilitator' AND id = ?)
+        WHERE active = 1
+        AND ((? = 'pu_manager' AND pu_id = ?)
+          OR (? = 'facilitator' AND id = ?))
         ORDER BY name
         """,
         (user["role"], user["pu_id"], user["role"], user["ff_id"]),
@@ -179,7 +191,7 @@ def reassign_lg(
         "SELECT id, pu_id FROM learning_groups WHERE id = ?", (lg_id,)
     ).fetchone()
     ff = connection.execute(
-        "SELECT id, pu_id FROM facilitators WHERE id = ?", (body.new_ff_id,)
+        "SELECT id, pu_id, active FROM facilitators WHERE id = ?", (body.new_ff_id,)
     ).fetchone()
     if lg is None or ff is None:
         connection.close()
@@ -187,6 +199,8 @@ def reassign_lg(
 
     if lg[1] != user["pu_id"]:
         fail(connection, 403, "You do not have access to this group")
+    if not ff[2]:
+        fail(connection, 400, "That facilitator has left")
     if lg[1] != ff[1]:
         connection.close()
         raise HTTPException(
@@ -271,6 +285,106 @@ def list_farmers(
     return [dict(row) for row in rows]
 
 
+FARMER_CODE_SQL = """pus.code
+    || '-' || printf('%03d', learning_groups.lg_number)
+    || '-' || printf('%02d', farmers.farmer_number)"""
+
+
+def like_pattern(text):
+    """Turns what the person typed into a safe 'contains' pattern."""
+    escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+@app.get("/farmers")
+def search_farmers(
+    lg_id: Optional[int] = None,
+    village_id: Optional[int] = None,
+    ff_id: Optional[int] = None,
+    q: str = "",
+    status: str = "continuing",
+    limit: int = 40,
+    offset: int = 0,
+    user: dict = Depends(current_user),
+):
+    """The farmer list. Always limited to what this person may see, then
+    narrowed by the filters. Returns one page at a time, so a slow phone
+    never has to download hundreds of farmers at once."""
+    if status not in ("continuing", "dropped_out", "all"):
+        fail(None, 400, "Unknown status")
+    limit = max(1, min(limit, 100))
+    offset = max(0, offset)
+
+    conditions = [
+        """((? = 'pu_manager' AND learning_groups.pu_id = ?)
+            OR (? = 'facilitator' AND assignments.ff_id = ?))"""
+    ]
+    values = [user["role"], user["pu_id"], user["role"], user["ff_id"]]
+
+    if lg_id is not None:
+        conditions.append("farmers.lg_id = ?")
+        values.append(lg_id)
+    if village_id is not None:
+        conditions.append("learning_groups.village_id = ?")
+        values.append(village_id)
+    if ff_id is not None:
+        conditions.append("assignments.ff_id = ?")
+        values.append(ff_id)
+    if status != "all":
+        conditions.append("farmers.participation = ?")
+        values.append(status)
+
+    text = q.strip()
+    if text != "":
+        pattern = like_pattern(text)
+        conditions.append(
+            f"""(farmers.name LIKE ? ESCAPE '\\'
+                 OR farmers.mobile LIKE ? ESCAPE '\\'
+                 OR {FARMER_CODE_SQL} LIKE ? ESCAPE '\\')"""
+        )
+        values.extend([pattern, pattern, pattern])
+
+    where = " AND ".join(conditions)
+    source = """
+        FROM farmers
+        JOIN learning_groups ON learning_groups.id = farmers.lg_id
+        JOIN pus ON pus.id = learning_groups.pu_id
+        JOIN villages ON villages.id = learning_groups.village_id
+        LEFT JOIN assignments
+            ON assignments.lg_id = farmers.lg_id
+            AND assignments.end_date IS NULL
+    """
+
+    connection = sqlite3.connect("field.db")
+    connection.row_factory = sqlite3.Row
+    total = connection.execute(
+        f"SELECT COUNT(*) {source} WHERE {where}", values
+    ).fetchone()[0]
+    rows = connection.execute(
+        f"""
+        SELECT
+            farmers.id,
+            {FARMER_CODE_SQL} AS farmer_code,
+            farmers.name,
+            farmers.gender,
+            farmers.growing_cotton,
+            farmers.participation,
+            farmers.mobile,
+            farmers.lg_id,
+            pus.code || '-' || printf('%03d', learning_groups.lg_number)
+                AS lg_code,
+            villages.name AS village
+        {source}
+        WHERE {where}
+        ORDER BY learning_groups.lg_number, farmers.farmer_number
+        LIMIT ? OFFSET ?
+        """,
+        values + [limit, offset],
+    ).fetchall()
+    connection.close()
+    return {"total": total, "items": [dict(row) for row in rows]}
+
+
 @app.get("/farmers/summary")
 def farmers_summary(user: dict = Depends(current_user)):
     connection = sqlite3.connect("field.db")
@@ -344,17 +458,25 @@ class DraftBody(BaseModel):
     mobile: str = ""
 
 
+def name_error(name, who):
+    """Returns a message if the name is not acceptable, otherwise None."""
+    if name == "":
+        return f"Please enter the {who}'s full name"
+    if len(name) < 3:
+        return "Name is too short (at least 3 letters)"
+    if len(name) > 60:
+        return "Name is too long (at most 60 letters)"
+    if not all(unicodedata.category(ch)[0] in "LM" or ch in " .'-" for ch in name):
+        return "Name can only have letters and spaces"
+    return None
+
+
 def check_farmer(name, gender, growing_cotton, mobile=""):
     errors = {}
 
-    if name == "":
-        errors["name"] = "Please enter the farmer's full name"
-    elif len(name) < 3:
-        errors["name"] = "Name is too short (at least 3 letters)"
-    elif len(name) > 60:
-        errors["name"] = "Name is too long (at most 60 letters)"
-    elif not all(unicodedata.category(ch)[0] in "LM" or ch in " .'-" for ch in name):
-        errors["name"] = "Name can only have letters and spaces"
+    message = name_error(name, "farmer")
+    if message:
+        errors["name"] = message
 
     if gender not in ALLOWED_GENDERS:
         errors["gender"] = "Please choose a gender"
@@ -828,11 +950,13 @@ def bulk_reassign(body: BulkReassign, user: dict = Depends(current_user)):
 
     connection = sqlite3.connect("field.db")
     ff = connection.execute(
-        "SELECT id, pu_id FROM facilitators WHERE id = ?", (body.new_ff_id,)
+        "SELECT id, pu_id, active FROM facilitators WHERE id = ?", (body.new_ff_id,)
     ).fetchone()
     if ff is None:
         connection.close()
         raise HTTPException(status_code=404, detail="Facilitator not found")
+    if not ff[2]:
+        fail(connection, 400, "That facilitator has left")
 
     marks = ",".join("?" * len(ids))
     groups = connection.execute(
@@ -905,7 +1029,7 @@ def ff_summary(user: dict = Depends(current_user)):
              AND farmers.participation = 'continuing') AS farmer_count
         FROM facilitators
         JOIN pus ON pus.id = facilitators.pu_id
-        WHERE facilitators.pu_id = ?
+        WHERE facilitators.pu_id = ? AND facilitators.active = 1
         ORDER BY pus.code, facilitators.name
         """,
         (user["pu_id"],),
@@ -958,3 +1082,160 @@ def ff_farmers(ff_id: int, user: dict = Depends(current_user)):
     ).fetchall()
     connection.close()
     return [dict(row) for row in rows]
+
+
+@app.get("/pu/facilitators")
+def pu_facilitators(user: dict = Depends(current_user)):
+    require_manager(user)
+    connection = sqlite3.connect("field.db")
+    connection.row_factory = sqlite3.Row
+    rows = connection.execute(
+        """
+        SELECT
+            facilitators.id,
+            facilitators.name,
+            facilitators.active,
+            facilitators.left_on,
+            (SELECT COUNT(*) FROM assignments
+             WHERE assignments.ff_id = facilitators.id
+             AND assignments.end_date IS NULL) AS lg_count,
+            (SELECT COUNT(*) FROM farmers
+             JOIN assignments ON assignments.lg_id = farmers.lg_id
+                 AND assignments.end_date IS NULL
+             WHERE assignments.ff_id = facilitators.id
+             AND farmers.participation = 'continuing') AS farmer_count
+        FROM facilitators
+        WHERE facilitators.pu_id = ?
+        ORDER BY facilitators.active DESC, facilitators.name
+        """,
+        (user["pu_id"],),
+    ).fetchall()
+    connection.close()
+    return [dict(row) for row in rows]
+
+
+class NewFacilitator(BaseModel):
+    name: str = ""
+
+
+@app.post("/pu/facilitators")
+def add_facilitator(body: NewFacilitator, user: dict = Depends(current_user)):
+    require_manager(user)
+    name = " ".join(body.name.split())
+
+    message = name_error(name, "facilitator")
+    if message:
+        raise HTTPException(status_code=400, detail={"name": message})
+
+    connection = sqlite3.connect("field.db")
+    same = connection.execute(
+        "SELECT id FROM facilitators WHERE pu_id = ? AND lower(name) = lower(?)",
+        (user["pu_id"], name),
+    ).fetchone()
+    if same is not None:
+        connection.close()
+        raise HTTPException(
+            status_code=400,
+            detail={"name": "A facilitator with this name already exists in your PU"},
+        )
+
+    cursor = connection.execute(
+        "INSERT INTO facilitators (name, pu_id) VALUES (?, ?)",
+        (name, user["pu_id"]),
+    )
+    ff_id = cursor.lastrowid
+    # The new facilitator also gets a demo sign-in.
+    connection.execute(
+        "INSERT INTO app_users (name, role, pu_id, ff_id) "
+        "VALUES (?, 'facilitator', ?, ?)",
+        (name, user["pu_id"], ff_id),
+    )
+    connection.commit()
+    connection.close()
+    return {"id": ff_id}
+
+
+class LeaveAssignment(BaseModel):
+    lg_id: int = 0
+    new_ff_id: int = 0
+
+
+class LeaveRequest(BaseModel):
+    assignments: List[LeaveAssignment] = []
+
+
+@app.post("/pu/facilitators/{ff_id}/leave")
+def facilitator_leaves(
+    ff_id: int, body: LeaveRequest, user: dict = Depends(current_user)
+):
+    require_manager(user)
+    connection = sqlite3.connect("field.db")
+
+    ff = connection.execute(
+        "SELECT id, pu_id, active FROM facilitators WHERE id = ?", (ff_id,)
+    ).fetchone()
+    if ff is None:
+        fail(connection, 404, "Facilitator not found", True)
+    if ff[1] != user["pu_id"]:
+        fail(connection, 403, "You do not have access to this facilitator", True)
+    if not ff[2]:
+        fail(connection, 400, "This facilitator is already marked as left", True)
+
+    current = connection.execute(
+        "SELECT id, lg_id FROM assignments WHERE ff_id = ? AND end_date IS NULL",
+        (ff_id,),
+    ).fetchall()
+    current_by_lg = {lg_id: assignment_id for assignment_id, lg_id in current}
+
+    chosen = {}
+    for item in body.assignments:
+        if item.lg_id in chosen:
+            fail(connection, 400, "A group was listed twice", True)
+        chosen[item.lg_id] = item.new_ff_id
+
+    # Every group of this facilitator needs a new facilitator, no more, no less.
+    if set(chosen) != set(current_by_lg):
+        fail(
+            connection,
+            400,
+            "Every learning group of this facilitator needs a new facilitator",
+            True,
+        )
+
+    destinations = set(chosen.values())
+    if ff_id in destinations:
+        fail(connection, 400, "A group cannot stay with the facilitator who is leaving", True)
+    if len(destinations) > 0:
+        marks = ",".join("?" * len(destinations))
+        found = connection.execute(
+            f"""
+            SELECT COUNT(*) FROM facilitators
+            WHERE id IN ({marks}) AND pu_id = ? AND active = 1
+            """,
+            list(destinations) + [user["pu_id"]],
+        ).fetchone()[0]
+        if found != len(destinations):
+            fail(
+                connection,
+                400,
+                "Choose active facilitators from your own PU",
+                True,
+            )
+
+    today = date.today().isoformat()
+    for lg_id, new_ff_id in chosen.items():
+        connection.execute(
+            "UPDATE assignments SET end_date = ? WHERE id = ?",
+            (today, current_by_lg[lg_id]),
+        )
+        connection.execute(
+            "INSERT INTO assignments (lg_id, ff_id, start_date) VALUES (?, ?, ?)",
+            (lg_id, new_ff_id, today),
+        )
+    connection.execute(
+        "UPDATE facilitators SET active = 0, left_on = ? WHERE id = ?",
+        (today, ff_id),
+    )
+    connection.commit()
+    connection.close()
+    return {"moved": len(chosen)}

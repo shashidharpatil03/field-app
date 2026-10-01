@@ -39,7 +39,9 @@ cursor.execute("""
     CREATE TABLE facilitators (
         id INTEGER PRIMARY KEY,
         name TEXT NOT NULL,
-        pu_id INTEGER NOT NULL REFERENCES pus(id)
+        pu_id INTEGER NOT NULL REFERENCES pus(id),
+        active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+        left_on TEXT
     )
 """)
 

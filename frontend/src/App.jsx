@@ -6,6 +6,8 @@ import TopBar from "./TopBar.jsx";
 import Home from "./Home.jsx";
 import FarmerData from "./FarmerData.jsx";
 import ComingSoon from "./ComingSoon.jsx";
+import PuManagement from "./PuManagement.jsx";
+import SyncScreen from "./SyncScreen.jsx";
 
 // Remember the signed-in user and language when the page is refreshed.
 function readSaved(key) {
@@ -36,7 +38,9 @@ function App() {
     setApiUser(savedUser ? savedUser.id : null);
     return savedUser;
   });
-  const [lang, setLangState] = useState(readSaved("lang") === "mr" ? "mr" : "en");
+  const [lang, setLangState] = useState(
+    readSaved("lang") === "mr" ? "mr" : "en",
+  );
   const [module, setModule] = useState(null);
 
   function setLang(value) {
@@ -68,12 +72,19 @@ function App() {
   } else {
     let content;
     if (module === null) {
-      content = <Home onOpen={setModule} />;
+      content = <Home onOpen={setModule} user={user} />;
     } else if (module === "farmers") {
       content = <FarmerData user={user} onHome={() => setModule(null)} />;
+    } else if (module === "pu" && user.role === "pu_manager") {
+      content = <PuManagement onHome={() => setModule(null)} />;
+    } else if (module === "sync") {
+      content = <SyncScreen onHome={() => setModule(null)} />;
     } else {
       content = (
-        <ComingSoon labelKey={`menu_${module}`} onHome={() => setModule(null)} />
+        <ComingSoon
+          labelKey={`menu_${module}`}
+          onHome={() => setModule(null)}
+        />
       );
     }
     screen = (
