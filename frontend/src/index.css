@@ -162,3 +162,26 @@ input[type="text"] {
   margin: 6px 0 0;
   font-weight: 600;
 }
+
+.drafts {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid #d5ddd8;
+}
+
+.drafts li {
+  padding: 6px 0;
+}
+
+.drafts small {
+  color: #5d6963;
+}
+
+.change {
+  margin: 8px 0;
+}
+
+.change small {
+  color: #5d6963;
+}

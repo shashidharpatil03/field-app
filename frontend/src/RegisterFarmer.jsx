@@ -1,73 +1,138 @@
 import { useState } from "react";
+import { checkForm } from "./farmerRules.js";
 
-function checkForm(name, gender, growingCotton) {
-  const errors = {};
-  const cleanName = name.trim();
-
-  if (cleanName === "") {
-    errors.name = "Please enter the farmer's full name";
-  } else if (cleanName.length < 3) {
-    errors.name = "Name is too short (at least 3 letters)";
-  } else if (cleanName.length > 60) {
-    errors.name = "Name is too long (at most 60 letters)";
-  } else if (!/^[\p{L}\p{M} .'-]+$/u.test(cleanName)) {
-    errors.name = "Name can only have letters and spaces";
-  }
-
-  if (gender === "") {
-    errors.gender = "Please choose a gender";
-  }
-
-  if (growingCotton === "") {
-    errors.growing_cotton = "Please choose Yes or No";
-  }
-
-  return errors;
-}
-
-function RegisterFarmer({ lgId, lgCode, onBack, onDone }) {
-  const [name, setName] = useState("");
-  const [gender, setGender] = useState("");
-  const [growingCotton, setGrowingCotton] = useState("");
+function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
+  const [name, setName] = useState(draft ? draft.name : "");
+  const [gender, setGender] = useState(draft ? draft.gender : "");
+  const [growingCotton, setGrowingCotton] = useState(
+    draft && draft.growing_cotton !== null
+      ? draft.growing_cotton
+        ? "yes"
+        : "no"
+      : ""
+  );
+  const [draftId, setDraftId] = useState(draft ? draft.id : null);
+  const [step, setStep] = useState("form");
   const [errors, setErrors] = useState({});
-  const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  async function handleSubmit(event) {
-    event.preventDefault();
+  function formData() {
+    return {
+      name: name,
+      gender: gender,
+      growing_cotton: growingCotton === "" ? null : growingCotton === "yes",
+    };
+  }
 
-    const found = checkForm(name, gender, growingCotton);
-    setErrors(found);
-    if (Object.keys(found).length > 0) {
+  // Saves the current answers as a draft. Returns { id } or { errors }.
+  async function saveDraft() {
+    const url =
+      draftId === null
+        ? `http://localhost:8000/lgs/${lgId}/drafts`
+        : `http://localhost:8000/drafts/${draftId}`;
+    const response = await fetch(url, {
+      method: draftId === null ? "POST" : "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formData()),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return { errors: typeof data.detail === "object" ? data.detail : {} };
+    }
+    setDraftId(data.id);
+    return { id: data.id };
+  }
+
+  async function handleSaveDraft() {
+    if (name.trim() === "" && gender === "" && growingCotton === "") {
+      setErrors({ form: "Nothing to save yet. Fill in at least one answer." });
       return;
     }
-
-    setSaving(true);
+    setBusy(true);
     try {
-      const response = await fetch(
-        `http://localhost:8000/lgs/${lgId}/farmers`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: name,
-            gender: gender,
-            growing_cotton: growingCotton === "yes",
-          }),
-        }
-      );
-      const data = await response.json();
-
-      if (response.ok) {
-        onDone(`${name.trim()} was registered in ${lgCode}.`);
-      } else if (typeof data.detail === "object") {
-        setErrors(data.detail);
+      const result = await saveDraft();
+      if (result.errors) {
+        setErrors(result.errors);
       } else {
-        setErrors({ form: "Something went wrong. Please try again." });
+        onDone("Draft saved. You can continue it later from the Drafts button.");
+        return;
       }
     } catch {
       setErrors({ form: "Could not reach the server. Please try again." });
     }
-    setSaving(false);
+    setBusy(false);
+  }
+
+  function handleReview(event) {
+    event.preventDefault();
+    const found = checkForm(name, gender, growingCotton);
+    setErrors(found);
+    if (Object.keys(found).length === 0) {
+      setStep("review");
+    }
+  }
+
+  async function handleSubmit() {
+    setBusy(true);
+    try {
+      const saved = await saveDraft();
+      if (saved.errors) {
+        setErrors(saved.errors);
+        setStep("form");
+        setBusy(false);
+        return;
+      }
+
+      const response = await fetch(
+        `http://localhost:8000/drafts/${saved.id}/submit`,
+        { method: "POST" }
+      );
+      const data = await response.json();
+
+      if (response.ok) {
+        onDone(`${name.trim()} was registered as ${data.farmer_code}.`);
+        return;
+      }
+      setErrors(typeof data.detail === "object" ? data.detail : {});
+      setStep("form");
+    } catch {
+      setErrors({ form: "Could not reach the server. Please try again." });
+      setStep("form");
+    }
+    setBusy(false);
+  }
+
+  if (step === "review") {
+    return (
+      <div>
+        <h1>Review</h1>
+        <p>Check the answers for {lgCode}, then submit.</p>
+
+        <div className="card">
+          <div className="profile-row">
+            <span className="label">Full name</span>
+            <span className="value">{name.trim()}</span>
+          </div>
+          <div className="profile-row">
+            <span className="label">Gender</span>
+            <span className="value">{gender}</span>
+          </div>
+          <div className="profile-row">
+            <span className="label">Growing cotton</span>
+            <span className="value">{growingCotton === "yes" ? "Yes" : "No"}</span>
+          </div>
+        </div>
+
+        {errors.form && <p className="error">{errors.form}</p>}
+
+        <button onClick={handleSubmit} disabled={busy}>
+          {busy ? "Submitting..." : "Submit"}
+        </button>
+        <button onClick={() => setStep("form")} disabled={busy}>
+          Edit answers
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -76,7 +141,7 @@ function RegisterFarmer({ lgId, lgCode, onBack, onDone }) {
       <h1>Register farmer</h1>
       <p>Learning group {lgCode}</p>
 
-      <form onSubmit={handleSubmit} noValidate>
+      <form onSubmit={handleReview} noValidate>
         <div className="field">
           <label htmlFor="name">Full name</label>
           <input
@@ -124,8 +189,11 @@ function RegisterFarmer({ lgId, lgCode, onBack, onDone }) {
 
         {errors.form && <p className="error">{errors.form}</p>}
 
-        <button type="submit" disabled={saving}>
-          {saving ? "Saving..." : "Register farmer"}
+        <button type="submit" disabled={busy}>
+          Review
+        </button>
+        <button type="button" onClick={handleSaveDraft} disabled={busy}>
+          Save draft
         </button>
       </form>
     </div>

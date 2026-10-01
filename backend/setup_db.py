@@ -6,6 +6,8 @@ random.seed(42)
 connection = sqlite3.connect("field.db")
 cursor = connection.cursor()
 
+cursor.execute("DROP TABLE IF EXISTS farmer_change_log")
+cursor.execute("DROP TABLE IF EXISTS farmer_drafts")
 cursor.execute("DROP TABLE IF EXISTS farmers")
 cursor.execute("DROP TABLE IF EXISTS assignments")
 cursor.execute("DROP TABLE IF EXISTS learning_groups")
@@ -70,6 +72,29 @@ cursor.execute("""
         participation TEXT NOT NULL DEFAULT 'continuing'
             CHECK (participation IN ('continuing', 'dropped_out')),
         UNIQUE (lg_id, farmer_number)
+    )
+""")
+
+cursor.execute("""
+    CREATE TABLE farmer_drafts (
+        id INTEGER PRIMARY KEY,
+        lg_id INTEGER NOT NULL REFERENCES learning_groups(id),
+        name TEXT NOT NULL DEFAULT '',
+        gender TEXT NOT NULL DEFAULT '',
+        growing_cotton INTEGER,
+        updated_at TEXT NOT NULL
+    )
+""")
+
+cursor.execute("""
+    CREATE TABLE farmer_change_log (
+        id INTEGER PRIMARY KEY,
+        farmer_id INTEGER NOT NULL REFERENCES farmers(id),
+        field TEXT NOT NULL,
+        old_value TEXT NOT NULL,
+        new_value TEXT NOT NULL,
+        changed_on TEXT NOT NULL,
+        reason TEXT NOT NULL DEFAULT ''
     )
 """)
 

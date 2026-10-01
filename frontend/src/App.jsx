@@ -14,6 +14,9 @@ function App() {
   const [farmers, setFarmers] = useState([]); // NEW
   const [profileId, setProfileId] = useState(null);
   const [registerLg, setRegisterLg] = useState(null);
+  const [registerDraft, setRegisterDraft] = useState(null);
+  const [draftsFor, setDraftsFor] = useState(null);
+  const [drafts, setDrafts] = useState([]);
 
   function loadLgs() {
     fetch("http://localhost:8000/lgs")
@@ -61,6 +64,40 @@ function App() {
       });
   }
 
+  function toggleDrafts(lgId) {
+    if (draftsFor === lgId) {
+      setDraftsFor(null);
+      return;
+    }
+    fetch(`http://localhost:8000/lgs/${lgId}/drafts`)
+      .then((response) => response.json())
+      .then((data) => {
+        setDrafts(data);
+        setDraftsFor(lgId);
+      });
+  }
+
+  async function deleteDraft(lgId, draftId) {
+    await fetch(`http://localhost:8000/drafts/${draftId}`, { method: "DELETE" });
+    const response = await fetch(`http://localhost:8000/lgs/${lgId}/drafts`);
+    setDrafts(await response.json());
+    loadLgs();
+  }
+
+  function backFromProfile() {
+    setProfileId(null);
+    if (farmersFor !== null) {
+      fetch(`http://localhost:8000/lgs/${farmersFor}/farmers`)
+        .then((response) => response.json())
+        .then((data) => setFarmers(data));
+    }
+  }
+
+  function closeRegister() {
+    setRegisterLg(null);
+    setRegisterDraft(null);
+  }
+
   async function confirmMove(lg) {
     const response = await fetch(
       `http://localhost:8000/lgs/${lg.id}/reassign`,
@@ -86,7 +123,7 @@ function App() {
   if (profileId !== null) {
     return (
       <div className="page">
-        <FarmerProfile farmerId={profileId} onBack={() => setProfileId(null)} />
+        <FarmerProfile farmerId={profileId} onBack={backFromProfile} />
       </div>
     );
   }
@@ -97,10 +134,12 @@ function App() {
         <RegisterFarmer
           lgId={registerLg.id}
           lgCode={registerLg.lg_code}
-          onBack={() => setRegisterLg(null)}
+          draft={registerDraft}
+          onBack={closeRegister}
           onDone={(text) => {
-            setRegisterLg(null);
+            closeRegister();
             setFarmersFor(null);
+            setDraftsFor(null);
             setMessage(text);
             loadLgs();
           }}
@@ -161,6 +200,34 @@ function App() {
           )}
 
           <button onClick={() => setRegisterLg(lg)}>Register farmer</button>
+
+          {lg.draft_count > 0 && (
+            <button onClick={() => toggleDrafts(lg.id)}>
+              {draftsFor === lg.id ? "Hide drafts" : `Drafts (${lg.draft_count})`}
+            </button>
+          )}
+
+          {draftsFor === lg.id && (
+            <ul className="drafts">
+              {drafts.map((d) => (
+                <li key={d.id}>
+                  <strong>{d.name || "Unnamed farmer"}</strong>
+                  <br />
+                  <small>Saved {d.updated_at.replace("T", " ")}</small>
+                  <br />
+                  <button
+                    onClick={() => {
+                      setRegisterDraft(d);
+                      setRegisterLg(lg);
+                    }}
+                  >
+                    Continue
+                  </button>
+                  <button onClick={() => deleteDraft(lg.id, d.id)}>Delete</button>
+                </li>
+              ))}
+            </ul>
+          )}
 
           {/* NEW: farmers button and list */}
           <button onClick={() => toggleFarmers(lg.id)}>

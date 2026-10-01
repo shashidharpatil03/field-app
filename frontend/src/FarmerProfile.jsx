@@ -1,10 +1,18 @@
 import { useState, useEffect } from "react";
+import EditFarmer from "./EditFarmer.jsx";
 
 function FarmerProfile({ farmerId, onBack }) {
   const [farmer, setFarmer] = useState(null);
+  const [changes, setChanges] = useState([]);
+  const [editing, setEditing] = useState(false);
+  const [version, setVersion] = useState(0);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    fetch(`http://localhost:8000/farmers/${farmerId}/changes`)
+      .then((response) => response.json())
+      .then((data) => setChanges(data));
+
     fetch(`http://localhost:8000/farmers/${farmerId}`)
       .then((response) => {
         if (!response.ok) {
@@ -14,7 +22,7 @@ function FarmerProfile({ farmerId, onBack }) {
       })
       .then((data) => setFarmer(data))
       .catch((err) => setError(err.message));
-  }, [farmerId]);
+  }, [farmerId, version]);
 
   if (error) {
     return (
@@ -35,6 +43,21 @@ function FarmerProfile({ farmerId, onBack }) {
 
       <h1>{farmer.farmer_code}</h1>
       <h2>{farmer.name}</h2>
+
+      {editing ? (
+        <div className="card">
+          <EditFarmer
+            farmer={farmer}
+            onCancel={() => setEditing(false)}
+            onSaved={() => {
+              setEditing(false);
+              setVersion(version + 1);
+            }}
+          />
+        </div>
+      ) : (
+        <button onClick={() => setEditing(true)}>Edit details</button>
+      )}
 
       <div className="card">
         <div className="profile-row">
@@ -71,6 +94,22 @@ function FarmerProfile({ farmerId, onBack }) {
           <span className="value">{farmer.ff_name ?? "Nobody yet"}</span>
         </div>
       </div>
+
+      {changes.length > 0 && (
+        <div className="card">
+          <h3>Change history</h3>
+          {changes.map((c) => (
+            <p key={c.id} className="change">
+              <strong>{c.field}:</strong> {c.old_value} → {c.new_value}
+              <br />
+              <small>
+                {c.changed_on}
+                {c.reason && ` · ${c.reason}`}
+              </small>
+            </p>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
