@@ -244,6 +244,27 @@ def check_draft(name, gender, mobile=""):
     return errors
 
 
+def mobile_owner(connection, mobile, except_farmer_id=0):
+    """Returns the code of another farmer who already uses this mobile, or None."""
+    row = connection.execute(
+        """
+        SELECT pus.code
+            || '-' || printf('%03d', learning_groups.lg_number)
+            || '-' || printf('%02d', farmers.farmer_number)
+        FROM farmers
+        JOIN learning_groups ON learning_groups.id = farmers.lg_id
+        JOIN pus ON pus.id = learning_groups.pu_id
+        WHERE farmers.mobile = ? AND farmers.id != ?
+        """,
+        (mobile, except_farmer_id),
+    ).fetchone()
+    return row[0] if row else None
+
+
+def mobile_taken_message(code):
+    return f"This mobile number is already used by farmer {code}"
+
+
 @app.get("/lgs/{lg_id}/drafts")
 def list_drafts(lg_id: int):
     connection = sqlite3.connect("field.db")
@@ -355,23 +376,40 @@ def submit_draft(draft_id: int):
         connection.close()
         raise HTTPException(status_code=400, detail=errors)
 
-    connection.execute(
-        "UPDATE learning_groups SET last_farmer_number = last_farmer_number + 1 "
-        "WHERE id = ?",
-        (lg_id,),
-    )
-    number = connection.execute(
-        "SELECT last_farmer_number FROM learning_groups WHERE id = ?", (lg_id,)
-    ).fetchone()[0]
+    if mobile != "":
+        owner = mobile_owner(connection, mobile)
+        if owner is not None:
+            connection.close()
+            raise HTTPException(
+                status_code=400, detail={"mobile": mobile_taken_message(owner)}
+            )
 
-    cursor = connection.execute(
-        """
-        INSERT INTO farmers
-            (lg_id, farmer_number, name, gender, growing_cotton, mobile)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        (lg_id, number, name, gender, growing, mobile or None),
-    )
+    try:
+        connection.execute(
+            "UPDATE learning_groups SET last_farmer_number = last_farmer_number + 1 "
+            "WHERE id = ?",
+            (lg_id,),
+        )
+        number = connection.execute(
+            "SELECT last_farmer_number FROM learning_groups WHERE id = ?", (lg_id,)
+        ).fetchone()[0]
+
+        cursor = connection.execute(
+            """
+            INSERT INTO farmers
+                (lg_id, farmer_number, name, gender, growing_cotton, mobile)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (lg_id, number, name, gender, growing, mobile or None),
+        )
+    except sqlite3.IntegrityError:
+        # Two people saved the same mobile at the same moment: undo everything.
+        connection.rollback()
+        connection.close()
+        raise HTTPException(
+            status_code=400,
+            detail={"mobile": "This mobile number is already used by another farmer"},
+        )
     new_id = cursor.lastrowid
     connection.execute("DELETE FROM farmer_drafts WHERE id = ?", (draft_id,))
     connection.commit()
@@ -439,12 +477,28 @@ def edit_farmer(farmer_id: int, body: FarmerEdit):
         connection.close()
         raise HTTPException(status_code=400, detail={"form": "Nothing was changed"})
 
+    if mobile != "" and (old[3] or "") != mobile:
+        owner = mobile_owner(connection, mobile, farmer_id)
+        if owner is not None:
+            connection.close()
+            raise HTTPException(
+                status_code=400, detail={"mobile": mobile_taken_message(owner)}
+            )
+
     today = date.today().isoformat()
-    connection.execute(
-        "UPDATE farmers SET name = ?, gender = ?, growing_cotton = ?, mobile = ? "
-        "WHERE id = ?",
-        (name, body.gender, new_cotton, mobile or None, farmer_id),
-    )
+    try:
+        connection.execute(
+            "UPDATE farmers SET name = ?, gender = ?, growing_cotton = ?, mobile = ? "
+            "WHERE id = ?",
+            (name, body.gender, new_cotton, mobile or None, farmer_id),
+        )
+    except sqlite3.IntegrityError:
+        connection.rollback()
+        connection.close()
+        raise HTTPException(
+            status_code=400,
+            detail={"mobile": "This mobile number is already used by another farmer"},
+        )
     for field, old_value, new_value in changes:
         connection.execute(
             """
@@ -539,3 +593,73 @@ def change_participation(farmer_id: int, body: ParticipationChange):
     connection.commit()
     connection.close()
     return {"message": "Saved"}
+
+
+@app.get("/ffs/summary")
+def ff_summary():
+    connection = sqlite3.connect("field.db")
+    connection.row_factory = sqlite3.Row
+    rows = connection.execute(
+        """
+        SELECT
+            facilitators.id,
+            facilitators.name,
+            pus.name AS pu_name,
+            (SELECT COUNT(*) FROM assignments
+             WHERE assignments.ff_id = facilitators.id
+             AND assignments.end_date IS NULL) AS lg_count,
+            (SELECT COUNT(*) FROM farmers
+             JOIN assignments ON assignments.lg_id = farmers.lg_id
+                 AND assignments.end_date IS NULL
+             WHERE assignments.ff_id = facilitators.id
+             AND farmers.participation = 'continuing') AS farmer_count
+        FROM facilitators
+        JOIN pus ON pus.id = facilitators.pu_id
+        ORDER BY pus.code, facilitators.name
+        """
+    ).fetchall()
+    connection.close()
+    return [dict(row) for row in rows]
+
+
+@app.get("/ffs/{ff_id}/farmers")
+def ff_farmers(ff_id: int):
+    connection = sqlite3.connect("field.db")
+    connection.row_factory = sqlite3.Row
+
+    ff = connection.execute(
+        "SELECT id FROM facilitators WHERE id = ?", (ff_id,)
+    ).fetchone()
+    if ff is None:
+        connection.close()
+        raise HTTPException(status_code=404, detail="Facilitator not found")
+
+    rows = connection.execute(
+        """
+        SELECT
+            farmers.id,
+            pus.code
+                || '-' || printf('%03d', learning_groups.lg_number)
+                || '-' || printf('%02d', farmers.farmer_number)
+                AS farmer_code,
+            pus.code
+                || '-' || printf('%03d', learning_groups.lg_number)
+                AS lg_code,
+            villages.name AS village,
+            farmers.name,
+            farmers.gender,
+            farmers.growing_cotton
+        FROM farmers
+        JOIN learning_groups ON learning_groups.id = farmers.lg_id
+        JOIN pus ON pus.id = learning_groups.pu_id
+        JOIN villages ON villages.id = learning_groups.village_id
+        JOIN assignments ON assignments.lg_id = learning_groups.id
+            AND assignments.end_date IS NULL
+        WHERE assignments.ff_id = ?
+        AND farmers.participation = 'continuing'
+        ORDER BY pus.code, learning_groups.lg_number, farmers.farmer_number
+        """,
+        (ff_id,),
+    ).fetchall()
+    connection.close()
+    return [dict(row) for row in rows]

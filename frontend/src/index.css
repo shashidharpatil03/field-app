@@ -197,3 +197,57 @@ input[type="text"] {
   width: 20px;
   height: 20px;
 }
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.tab {
+  flex: 1;
+  margin: 0;
+  padding: 12px;
+  font-weight: 600;
+}
+
+.tab.active {
+  background: #1f6b4f;
+  color: white;
+}
+
+.ff-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 14px;
+  text-align: left;
+  border: 1px solid #d5ddd8;
+  border-radius: 12px;
+  background: white;
+  color: inherit;
+}
+
+.ff-name {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.ff-count {
+  grid-row: span 2;
+  align-self: center;
+  font-size: 28px;
+  font-weight: 700;
+  color: #1f6b4f;
+}
+
+.ff-detail {
+  color: #5d6963;
+}
+
+.ff-count small {
+  font-size: 14px;
+  font-weight: 400;
+  color: #5d6963;
+}

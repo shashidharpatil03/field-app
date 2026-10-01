@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import FarmerProfile from "./FarmerProfile.jsx";
 import RegisterFarmer from "./RegisterFarmer.jsx";
+import Facilitators from "./Facilitators.jsx";
 
 function App() {
   const [lgs, setLgs] = useState([]);
@@ -13,6 +14,8 @@ function App() {
   const [farmersFor, setFarmersFor] = useState(null); // NEW
   const [farmers, setFarmers] = useState([]); // NEW
   const [showDropped, setShowDropped] = useState(false);
+  const [view, setView] = useState("lgs");
+  const [selectedFfId, setSelectedFfId] = useState(null);
   const [profileId, setProfileId] = useState(null);
   const [registerLg, setRegisterLg] = useState(null);
   const [registerDraft, setRegisterDraft] = useState(null);
@@ -159,8 +162,39 @@ function App() {
     );
   }
 
+  const tabs = (
+    <div className="tabs">
+      <button
+        className={view === "lgs" ? "tab active" : "tab"}
+        onClick={() => setView("lgs")}
+      >
+        Learning groups
+      </button>
+      <button
+        className={view === "ffs" ? "tab active" : "tab"}
+        onClick={() => setView("ffs")}
+      >
+        Facilitators
+      </button>
+    </div>
+  );
+
+  if (view === "ffs") {
+    return (
+      <div className="page">
+        {tabs}
+        <Facilitators
+          selectedFfId={selectedFfId}
+          onSelect={setSelectedFfId}
+          onOpenFarmer={setProfileId}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="page">
+      {tabs}
       <h1>Learning groups</h1>
       {message && <p className="message">{message}</p>}
 
