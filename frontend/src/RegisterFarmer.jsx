@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { checkForm } from "./farmerRules.js";
+import {
+  checkForm,
+  parseAcres,
+  landFormatErrors,
+  needsLargeConfirm,
+  cottonAfterGrowingChange,
+  acresText,
+} from "./farmerRules.js";
+import LandFields from "./LandFields.jsx";
 import { apiFetch } from "./api.js";
 import { addPending, isNetworkError } from "./offline.js";
 
@@ -11,20 +19,48 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
       ? draft.growing_cotton
         ? "yes"
         : "no"
-      : ""
+      : "",
   );
   const [mobile, setMobile] = useState(draft ? draft.mobile : "");
+  const [total, setTotal] = useState(
+    draft ? acresText(draft.total_landholding) : "",
+  );
+  const [cotton, setCotton] = useState(
+    draft
+      ? draft.growing_cotton === 0
+        ? "0"
+        : acresText(draft.area_under_cotton)
+      : "",
+  );
+  const [water, setWater] = useState(draft ? draft.water_regime : "");
+  // The answer to "is it correct?" only counts for the numbers it was given
+  // for, so changing a number asks the question again.
+  const [confirmedFor, setConfirmedFor] = useState(
+    draft && draft.confirmed_large
+      ? `${draft.total_landholding}|${draft.area_under_cotton}`
+      : "",
+  );
   const [draftId, setDraftId] = useState(draft ? draft.id : null);
   const [step, setStep] = useState("form");
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
 
+  const landKey = `${parseAcres(total)}|${parseAcres(cotton)}`;
+  const isLarge = needsLargeConfirm(total, cotton, null, null);
+  const confirmed = confirmedFor === landKey;
+
   function formData() {
+    const totalValue = parseAcres(total);
+    const cottonValue = parseAcres(cotton);
     return {
       name: name,
       gender: gender,
       growing_cotton: growingCotton === "" ? null : growingCotton === "yes",
       mobile: mobile,
+      total_landholding: Number.isNaN(totalValue) ? null : totalValue,
+      area_under_cotton: Number.isNaN(cottonValue) ? null : cottonValue,
+      water_regime: water,
+      confirmed_large: isLarge && confirmed,
     };
   }
 
@@ -44,7 +80,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
       return false;
     }
     onDone(
-      "No connection, so this is saved on this phone. Open Sync when you have signal to send it."
+      "No connection, so this is saved on this phone. Open Sync when you have signal to send it.",
     );
     return true;
   }
@@ -73,9 +109,17 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
       name.trim() === "" &&
       gender === "" &&
       growingCotton === "" &&
-      mobile.trim() === ""
+      mobile.trim() === "" &&
+      total.trim() === "" &&
+      cotton.trim() === "" &&
+      water === ""
     ) {
       setErrors({ form: "Nothing to save yet. Fill in at least one answer." });
+      return;
+    }
+    const formatProblems = landFormatErrors(total, cotton);
+    if (Object.keys(formatProblems).length > 0) {
+      setErrors(formatProblems);
       return;
     }
     setBusy(true);
@@ -84,7 +128,9 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
       if (result.errors) {
         setErrors(result.errors);
       } else {
-        onDone("Draft saved. You can continue it later from the Drafts button.");
+        onDone(
+          "Draft saved. You can continue it later from the Drafts button.",
+        );
         return;
       }
     } catch (error) {
@@ -100,7 +146,11 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
 
   function handleReview(event) {
     event.preventDefault();
-    const found = checkForm(name, gender, growingCotton, mobile);
+    const found = checkForm(name, gender, growingCotton, mobile, {
+      total: total,
+      cotton: cotton,
+      water: water,
+    });
     setErrors(found);
     if (Object.keys(found).length === 0) {
       setStep("review");
@@ -122,7 +172,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
 
       const response = await apiFetch(
         `http://localhost:8000/drafts/${saved.id}/submit`,
-        { method: "POST" }
+        { method: "POST" },
       );
       const data = await response.json();
 
@@ -163,22 +213,55 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
           </div>
           <div className="profile-row">
             <span className="label">Growing cotton</span>
-            <span className="value">{growingCotton === "yes" ? "Yes" : "No"}</span>
+            <span className="value">
+              {growingCotton === "yes" ? "Yes" : "No"}
+            </span>
           </div>
           <div className="profile-row">
             <span className="label">Mobile number</span>
             <span className="value">{mobile.trim() || "Not given"}</span>
           </div>
+          <div className="profile-row">
+            <span className="label">Total landholding</span>
+            <span className="value">{parseAcres(total)} acres</span>
+          </div>
+          <div className="profile-row">
+            <span className="label">Area under cotton</span>
+            <span className="value">{parseAcres(cotton)} acres</span>
+          </div>
+          <div className="profile-row">
+            <span className="label">Water regime</span>
+            <span className="value">{water}</span>
+          </div>
         </div>
+
+        {isLarge && !confirmed && (
+          <div className="warning-box" role="alert">
+            <strong>This is unusual. Is it correct?</strong>
+            <p>
+              Most farmers have less than 50 acres, and you entered{" "}
+              {parseAcres(total)} acres of land and {parseAcres(cotton)} acres
+              of cotton.
+            </p>
+            <button onClick={() => setConfirmedFor(landKey)}>
+              Yes, it is correct
+            </button>
+            <button onClick={() => setStep("form")}>No, edit answers</button>
+          </div>
+        )}
 
         {errors.form && <p className="error">{errors.form}</p>}
 
-        <button onClick={handleSubmit} disabled={busy}>
-          {busy ? "Submitting..." : "Submit"}
-        </button>
-        <button onClick={() => setStep("form")} disabled={busy}>
-          Edit answers
-        </button>
+        {(!isLarge || confirmed) && (
+          <div>
+            <button onClick={handleSubmit} disabled={busy}>
+              {busy ? "Submitting..." : "Submit"}
+            </button>
+            <button onClick={() => setStep("form")} disabled={busy}>
+              Edit answers
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -223,7 +306,10 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
           <select
             id="cotton"
             value={growingCotton}
-            onChange={(e) => setGrowingCotton(e.target.value)}
+            onChange={(e) => {
+              setGrowingCotton(e.target.value);
+              setCotton(cottonAfterGrowingChange(e.target.value, cotton));
+            }}
             className={errors.growing_cotton ? "has-error" : ""}
           >
             <option value="">Choose...</option>
@@ -249,6 +335,21 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
           {errors.mobile && <p className="error">{errors.mobile}</p>}
         </div>
 
+        <LandFields
+          idPrefix="reg"
+          total={total}
+          setTotal={setTotal}
+          cotton={cotton}
+          setCotton={setCotton}
+          growingCotton={growingCotton}
+          water={water}
+          setWater={setWater}
+          errors={errors}
+        />
+
+        {errors.confirm_large && (
+          <p className="error">{errors.confirm_large}</p>
+        )}
         {errors.form && <p className="error">{errors.form}</p>}
 
         <button type="submit" disabled={busy}>

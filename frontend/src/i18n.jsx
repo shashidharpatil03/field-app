@@ -25,7 +25,15 @@ export const translations = {
     menu_capacity: "Capacity Strengthening",
     menu_rir: "RIR",
 
-    statContinuing: "Farmers continuing",
+    statParticipating: "Farmers participating",
+    statWomen: "Women farmers",
+    statWomenShare: "{pct}% of participating",
+    statArea: "Area under cotton (acres)",
+    seasonTitle: "This season",
+    seasonSince: "Since {date}",
+    seasonUpdated: "Farmers updated",
+    seasonAdded: "Newly added",
+    seasonDropped: "Dropped out",
     statGrowing: "Growing cotton",
 
     tabLgs: "Learning groups",
@@ -166,7 +174,15 @@ export const translations = {
     menu_capacity: "क्षमता बांधणी",
     menu_rir: "RIR",
 
-    statContinuing: "सहभागी शेतकरी",
+    statParticipating: "सहभागी शेतकरी",
+    statWomen: "महिला शेतकरी",
+    statWomenShare: "सहभागींपैकी {pct}%",
+    statArea: "कापसाखालील क्षेत्र (एकर)",
+    seasonTitle: "या हंगामात",
+    seasonSince: "{date} पासून",
+    seasonUpdated: "माहिती अद्ययावत केलेले शेतकरी",
+    seasonAdded: "नवीन जोडलेले शेतकरी",
+    seasonDropped: "सोडून गेलेले शेतकरी",
     statGrowing: "कापूस लागवड करणारे",
 
     tabLgs: "लर्निंग ग्रुप",

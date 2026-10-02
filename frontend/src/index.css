@@ -37,10 +37,10 @@
   /* Poppins for headings, Roboto for everything else. Both are saved inside
      the app. Marathi text uses Poppins (which has Devanagari) for headings
      and the phone's own Noto Sans Devanagari for body text. */
-  --font-body: Roboto, "Noto Sans Devanagari", "Nirmala UI", system-ui,
-    sans-serif;
-  --font-display: Poppins, Roboto, "Noto Sans Devanagari", "Nirmala UI",
-    system-ui, sans-serif;
+  --font-body:
+    Roboto, "Noto Sans Devanagari", "Nirmala UI", system-ui, sans-serif;
+  --font-display:
+    Poppins, Roboto, "Noto Sans Devanagari", "Nirmala UI", system-ui, sans-serif;
 }
 
 body {
@@ -866,5 +866,62 @@ button.primary:disabled {
   display: block;
   margin-top: 8px;
   color: var(--muted);
+  font-size: 14px;
+}
+
+.hint {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.warning-box {
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 3px solid var(--heading);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.warning-box p {
+  margin: 8px 0 12px;
+}
+
+.stat-sub {
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--heading);
+}
+
+.season-box {
+  margin: 0 0 12px;
+  padding: 12px;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.season-box h3 {
+  margin: 0;
+}
+
+.season-since {
+  margin: 2px 0 8px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.season-numbers {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.season-numbers .stat-number {
+  font-size: 28px;
+}
+
+.season-numbers .stat-label {
   font-size: 14px;
 }

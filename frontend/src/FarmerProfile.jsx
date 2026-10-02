@@ -75,9 +75,37 @@ function FarmerProfile({ farmerId, onBack }) {
           <span className="value">{farmer.mobile ?? "Not given"}</span>
         </div>
         <div className="profile-row">
+          <span className="label">Total landholding</span>
+          <span className="value">
+            {farmer.total_landholding === null
+              ? "Not recorded"
+              : `${farmer.total_landholding} acres`}
+          </span>
+        </div>
+        <div className="profile-row">
+          <span className="label">Area under cotton</span>
+          <span className="value">
+            {farmer.area_under_cotton === null
+              ? "Not recorded"
+              : `${farmer.area_under_cotton} acres`}
+          </span>
+        </div>
+        <div className="profile-row">
+          <span className="label">Water regime</span>
+          <span className="value">{farmer.water_regime ?? "Not recorded"}</span>
+        </div>
+        <div className="profile-row">
+          <span className="label">Registered on</span>
+          <span className="value">
+            {farmer.registered_on ?? "Not recorded"}
+          </span>
+        </div>
+        <div className="profile-row">
           <span className="label">Participation</span>
           <span className={`badge ${farmer.participation}`}>
-            {farmer.participation === "continuing" ? "Continuing" : "Dropped out"}
+            {farmer.participation === "continuing"
+              ? "Continuing"
+              : "Dropped out"}
           </span>
         </div>
       </div>

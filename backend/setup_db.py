@@ -1,6 +1,9 @@
 import random
 import sqlite3
 
+from datetime import date
+
+from demo_data import add_demo_history, demo_land, demo_registered_on
 from users_seed import create_users_table, seed_users
 
 random.seed(42)
@@ -80,6 +83,19 @@ cursor.execute("""
         ),
         participation TEXT NOT NULL DEFAULT 'continuing'
             CHECK (participation IN ('continuing', 'dropped_out')),
+        total_landholding REAL CHECK (
+            total_landholding IS NULL
+            OR (total_landholding > 0 AND total_landholding <= 100)
+        ),
+        area_under_cotton REAL CHECK (
+            area_under_cotton IS NULL
+            OR (area_under_cotton >= 0 AND area_under_cotton <= 100)
+        ),
+        water_regime TEXT CHECK (
+            water_regime IS NULL
+            OR water_regime IN ('Rainfed', 'Partially irrigated', 'Fully irrigated')
+        ),
+        registered_on TEXT,
         UNIQUE (lg_id, farmer_number)
     )
 """)
@@ -92,6 +108,10 @@ cursor.execute("""
         gender TEXT NOT NULL DEFAULT '',
         growing_cotton INTEGER,
         mobile TEXT NOT NULL DEFAULT '',
+        total_landholding REAL,
+        area_under_cotton REAL,
+        water_regime TEXT NOT NULL DEFAULT '',
+        confirmed_large INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL
     )
 """)
@@ -155,7 +175,12 @@ for lg_id in range(1, len(groups) + 1):
         gender = random.choice(["Female", "Male"])
         growing_cotton = 1 if random.random() < 0.9 else 0
         participation = "dropped_out" if number % 8 == 0 else "continuing"
-        farmers.append((lg_id, number, name, gender, growing_cotton, participation))
+        total, cotton, water = demo_land(random, growing_cotton == 1)
+        registered_on = demo_registered_on(random, date.today())
+        farmers.append(
+            (lg_id, number, name, gender, growing_cotton, participation,
+             total, cotton, water, registered_on)
+        )
 
 cursor.executemany("INSERT INTO pus (code, name) VALUES (?, ?)", pus)
 cursor.executemany("INSERT INTO villages (name, pu_id) VALUES (?, ?)", villages)
@@ -173,8 +198,9 @@ cursor.executemany(
 cursor.executemany(
     """
     INSERT INTO farmers
-        (lg_id, farmer_number, name, gender, growing_cotton, participation)
-    VALUES (?, ?, ?, ?, ?, ?)
+        (lg_id, farmer_number, name, gender, growing_cotton, participation,
+         total_landholding, area_under_cotton, water_regime, registered_on)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """,
     farmers,
 )
@@ -192,6 +218,8 @@ cursor.execute("""
         WHERE farmers.lg_id = learning_groups.id
     )
 """)
+
+add_demo_history(connection, random, date.today())
 
 create_users_table(connection)
 seed_users(connection)

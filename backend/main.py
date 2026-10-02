@@ -8,6 +8,8 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from land_rules import check_draft_land, check_land, show_acres
+
 app = FastAPI()
 
 app.add_middleware(
@@ -388,25 +390,95 @@ def search_farmers(
     return {"total": total, "items": [dict(row) for row in rows]}
 
 
-@app.get("/farmers/summary")
-def farmers_summary(user: dict = Depends(current_user)):
+# Which farmers this user may count: a manager sees the whole production
+# unit, a facilitator only the groups assigned to them.
+DASHBOARD_FROM = """
+    FROM farmers
+    JOIN learning_groups ON learning_groups.id = farmers.lg_id
+    LEFT JOIN assignments
+        ON assignments.lg_id = farmers.lg_id
+        AND assignments.end_date IS NULL
+    WHERE ((? = 'pu_manager' AND learning_groups.pu_id = ?)
+        OR (? = 'facilitator' AND assignments.ff_id = ?))
+"""
+
+
+def season_start(today):
+    """The cotton season starts on 1 May every year."""
+    this_year = date(today.year, 5, 1)
+    return this_year if today >= this_year else date(today.year - 1, 5, 1)
+
+
+@app.get("/farmers/dashboard")
+def farmers_dashboard(user: dict = Depends(current_user)):
+    scope = (user["role"], user["pu_id"], user["role"], user["ff_id"])
+    start = season_start(date.today()).isoformat()
     connection = sqlite3.connect("field.db")
-    row = connection.execute(
+
+    total, growing, women, area = connection.execute(
         """
-        SELECT COUNT(*), COALESCE(SUM(farmers.growing_cotton), 0)
-        FROM farmers
-        JOIN learning_groups ON learning_groups.id = farmers.lg_id
-        LEFT JOIN assignments
-            ON assignments.lg_id = farmers.lg_id
-            AND assignments.end_date IS NULL
-        WHERE farmers.participation = 'continuing'
-        AND ((? = 'pu_manager' AND learning_groups.pu_id = ?)
-          OR (? = 'facilitator' AND assignments.ff_id = ?))
-        """,
-        (user["role"], user["pu_id"], user["role"], user["ff_id"]),
+        SELECT COUNT(*),
+               COALESCE(SUM(farmers.growing_cotton), 0),
+               COALESCE(SUM(farmers.gender = 'Female'), 0),
+               COALESCE(SUM(farmers.area_under_cotton), 0)
+        """
+        + DASHBOARD_FROM
+        + " AND farmers.participation = 'continuing'",
+        scope,
     ).fetchone()
+
+    added = connection.execute(
+        "SELECT COUNT(*) " + DASHBOARD_FROM + " AND farmers.registered_on >= ?",
+        scope + (start,),
+    ).fetchone()[0]
+
+    # Dropped out this season: now dropped out, and the drop-out was recorded
+    # on or after the season start.
+    dropped = connection.execute(
+        "SELECT COUNT(*) "
+        + DASHBOARD_FROM
+        + """
+        AND farmers.participation = 'dropped_out'
+        AND EXISTS (
+            SELECT 1 FROM farmer_change_log log
+            WHERE log.farmer_id = farmers.id
+            AND log.field = 'Participation'
+            AND log.new_value = 'Dropped out'
+            AND log.changed_on >= ?)
+        """,
+        scope + (start,),
+    ).fetchone()[0]
+
+    # Updated: registered before this season, and had profile details
+    # (anything except participation) changed since it began.
+    updated = connection.execute(
+        "SELECT COUNT(*) "
+        + DASHBOARD_FROM
+        + """
+        AND farmers.registered_on < ?
+        AND EXISTS (
+            SELECT 1 FROM farmer_change_log log
+            WHERE log.farmer_id = farmers.id
+            AND log.field != 'Participation'
+            AND log.changed_on >= ?)
+        """,
+        scope + (start, start),
+    ).fetchone()[0]
     connection.close()
-    return {"continuing": row[0], "growing_cotton": row[1]}
+
+    return {
+        "participating": total,
+        "growing_cotton": growing,
+        "women": women,
+        "women_percent": round(100 * women / total) if total else 0,
+        "area_under_cotton": round(area, 1),
+        "season": {
+            "start": start,
+            "updated": updated,
+            "added": added,
+            "dropped_out": dropped,
+        },
+    }
 
 
 @app.get("/farmers/{farmer_id}")
@@ -430,6 +502,10 @@ def get_farmer(farmer_id: int, user: dict = Depends(current_user)):
             farmers.growing_cotton,
             farmers.mobile,
             farmers.participation,
+            farmers.total_landholding,
+            farmers.area_under_cotton,
+            farmers.water_regime,
+            farmers.registered_on,
             villages.name AS village,
             pus.name AS pu_name,
             facilitators.name AS ff_name
@@ -459,6 +535,10 @@ class DraftBody(BaseModel):
     gender: str = ""
     growing_cotton: Optional[bool] = None
     mobile: str = ""
+    total_landholding: Optional[float] = None
+    area_under_cotton: Optional[float] = None
+    water_regime: str = ""
+    confirmed_large: bool = False
 
 
 def name_error(name, who):
@@ -475,6 +555,7 @@ def name_error(name, who):
 
 
 def check_farmer(name, gender, growing_cotton, mobile=""):
+    """Checks the personal answers. The land answers use check_land()."""
     errors = {}
 
     message = name_error(name, "farmer")
@@ -494,8 +575,8 @@ def check_farmer(name, gender, growing_cotton, mobile=""):
     return errors
 
 
-def check_draft(name, gender, mobile=""):
-    errors = {}
+def check_draft(name, gender, mobile="", total=None, cotton=None, water=""):
+    errors = check_draft_land(total, cotton, water)
     if mobile != "" and not re.fullmatch(r"[0-9]{1,10}", mobile):
         errors["mobile"] = "Mobile number can only have digits (up to 10)"
     if len(name) > 60:
@@ -537,7 +618,8 @@ def list_drafts(lg_id: int, user: dict = Depends(current_user)):
     require_lg(connection, user, lg_id)
     rows = connection.execute(
         """
-        SELECT id, name, gender, growing_cotton, mobile, updated_at
+        SELECT id, name, gender, growing_cotton, mobile, total_landholding,
+               area_under_cotton, water_regime, confirmed_large, updated_at
         FROM farmer_drafts
         WHERE lg_id = ?
         ORDER BY updated_at DESC, id DESC
@@ -552,7 +634,10 @@ def list_drafts(lg_id: int, user: dict = Depends(current_user)):
 def create_draft(lg_id: int, body: DraftBody, user: dict = Depends(current_user)):
     name = " ".join(body.name.split())
     mobile = body.mobile.strip()
-    errors = check_draft(name, body.gender, mobile)
+    errors = check_draft(
+        name, body.gender, mobile,
+        body.total_landholding, body.area_under_cotton, body.water_regime,
+    )
     if errors:
         raise HTTPException(status_code=400, detail=errors)
 
@@ -563,10 +648,13 @@ def create_draft(lg_id: int, body: DraftBody, user: dict = Depends(current_user)
     cursor = connection.execute(
         """
         INSERT INTO farmer_drafts
-            (lg_id, name, gender, growing_cotton, mobile, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+            (lg_id, name, gender, growing_cotton, mobile, total_landholding,
+             area_under_cotton, water_regime, confirmed_large, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (lg_id, name, body.gender, growing, mobile,
+         body.total_landholding, body.area_under_cotton, body.water_regime,
+         int(body.confirmed_large),
          datetime.now().isoformat(timespec="seconds")),
     )
     new_id = cursor.lastrowid
@@ -579,7 +667,10 @@ def create_draft(lg_id: int, body: DraftBody, user: dict = Depends(current_user)
 def update_draft(draft_id: int, body: DraftBody, user: dict = Depends(current_user)):
     name = " ".join(body.name.split())
     mobile = body.mobile.strip()
-    errors = check_draft(name, body.gender, mobile)
+    errors = check_draft(
+        name, body.gender, mobile,
+        body.total_landholding, body.area_under_cotton, body.water_regime,
+    )
     if errors:
         raise HTTPException(status_code=400, detail=errors)
 
@@ -589,10 +680,14 @@ def update_draft(draft_id: int, body: DraftBody, user: dict = Depends(current_us
     cursor = connection.execute(
         """
         UPDATE farmer_drafts
-        SET name = ?, gender = ?, growing_cotton = ?, mobile = ?, updated_at = ?
+        SET name = ?, gender = ?, growing_cotton = ?, mobile = ?,
+            total_landholding = ?, area_under_cotton = ?, water_regime = ?,
+            confirmed_large = ?, updated_at = ?
         WHERE id = ?
         """,
         (name, body.gender, growing, mobile,
+         body.total_landholding, body.area_under_cotton, body.water_regime,
+         int(body.confirmed_large),
          datetime.now().isoformat(timespec="seconds"), draft_id),
     )
     connection.commit()
@@ -624,7 +719,8 @@ def submit_draft(draft_id: int, user: dict = Depends(current_user)):
     require_draft(connection, user, draft_id)
 
     draft = connection.execute(
-        "SELECT lg_id, name, gender, growing_cotton, mobile "
+        "SELECT lg_id, name, gender, growing_cotton, mobile, "
+        "total_landholding, area_under_cotton, water_regime, confirmed_large "
         "FROM farmer_drafts WHERE id = ?",
         (draft_id,),
     ).fetchone()
@@ -632,10 +728,15 @@ def submit_draft(draft_id: int, user: dict = Depends(current_user)):
         connection.close()
         raise HTTPException(status_code=404, detail={"form": "Draft not found"})
 
-    lg_id, name, gender, growing, mobile = draft
+    (lg_id, name, gender, growing, mobile,
+     total, cotton, water, confirmed) = draft
     growing_cotton = None if growing is None else bool(growing)
 
     errors = check_farmer(name, gender, growing_cotton, mobile)
+    land_errors, cotton = check_land(
+        total, cotton, water, growing_cotton, bool(confirmed)
+    )
+    errors.update(land_errors)
     if errors:
         connection.close()
         raise HTTPException(status_code=400, detail=errors)
@@ -659,10 +760,13 @@ def submit_draft(draft_id: int, user: dict = Depends(current_user)):
         cursor = connection.execute(
             """
             INSERT INTO farmers
-                (lg_id, farmer_number, name, gender, growing_cotton, mobile)
-            VALUES (?, ?, ?, ?, ?, ?)
+                (lg_id, farmer_number, name, gender, growing_cotton, mobile,
+                 total_landholding, area_under_cotton, water_regime,
+                 registered_on)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (lg_id, number, name, gender, growing, mobile or None),
+            (lg_id, number, name, gender, growing, mobile or None,
+             round(total, 2), cotton, water, date.today().isoformat()),
         )
     except sqlite3.IntegrityError:
         # Two people saved the same mobile at the same moment: undo everything.
@@ -697,6 +801,10 @@ class FarmerEdit(BaseModel):
     gender: str = ""
     growing_cotton: Optional[bool] = None
     mobile: str = ""
+    total_landholding: Optional[float] = None
+    area_under_cotton: Optional[float] = None
+    water_regime: str = ""
+    confirmed_large: bool = False
     reason: str = ""
 
 
@@ -711,18 +819,28 @@ def edit_farmer(
     errors = check_farmer(name, body.gender, body.growing_cotton, mobile)
     if len(reason) > 200:
         errors["reason"] = "Reason is too long (at most 200 characters)"
-    if errors:
-        raise HTTPException(status_code=400, detail=errors)
 
     connection = sqlite3.connect("field.db")
     require_farmer(connection, user, farmer_id, True)
     old = connection.execute(
-        "SELECT name, gender, growing_cotton, mobile FROM farmers WHERE id = ?",
+        "SELECT name, gender, growing_cotton, mobile, total_landholding, "
+        "area_under_cotton, water_regime FROM farmers WHERE id = ?",
         (farmer_id,),
     ).fetchone()
     if old is None:
         connection.close()
         raise HTTPException(status_code=404, detail={"form": "Farmer not found"})
+
+    land_errors, new_cotton_area = check_land(
+        body.total_landholding, body.area_under_cotton, body.water_regime,
+        body.growing_cotton, body.confirmed_large,
+        old_total=old[4], old_cotton=old[5],
+    )
+    errors.update(land_errors)
+    if errors:
+        connection.close()
+        raise HTTPException(status_code=400, detail=errors)
+    new_total = round(body.total_landholding, 2)
 
     new_cotton = 1 if body.growing_cotton else 0
     changes = []
@@ -737,6 +855,17 @@ def edit_farmer(
 
     if (old[3] or "") != mobile:
         changes.append(("Mobile number", old[3] or "(none)", mobile or "(none)"))
+    if old[4] is None or abs(old[4] - new_total) > 1e-9:
+        changes.append(
+            ("Total landholding (acres)", show_acres(old[4]), show_acres(new_total))
+        )
+    if old[5] is None or abs(old[5] - new_cotton_area) > 1e-9:
+        changes.append(
+            ("Area under cotton (acres)", show_acres(old[5]),
+             show_acres(new_cotton_area))
+        )
+    if old[6] != body.water_regime:
+        changes.append(("Water regime", old[6] or "(not recorded)", body.water_regime))
 
     if not changes:
         connection.close()
@@ -751,9 +880,11 @@ def edit_farmer(
     today = date.today().isoformat()
     try:
         connection.execute(
-            "UPDATE farmers SET name = ?, gender = ?, growing_cotton = ?, mobile = ? "
-            "WHERE id = ?",
-            (name, body.gender, new_cotton, mobile or None, farmer_id),
+            "UPDATE farmers SET name = ?, gender = ?, growing_cotton = ?, "
+            "mobile = ?, total_landholding = ?, area_under_cotton = ?, "
+            "water_regime = ? WHERE id = ?",
+            (name, body.gender, new_cotton, mobile or None, new_total,
+             new_cotton_area, body.water_regime, farmer_id),
         )
     except sqlite3.IntegrityError:
         connection.rollback()
