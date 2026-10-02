@@ -1,86 +1,88 @@
 import { useT } from "./i18n.jsx";
-import Donut from "./Donut.jsx";
+import StackedBar from "./StackedBar.jsx";
+import PartChips from "./PartChips.jsx";
 
 export const DONE_COLOR = "#14694a";
-export const DROPPED_COLOR = "#a31515";
-export const REMAINING_COLOR = "#dbbf9e";
+export const DROPPED_COLOR = "#dbbf9e";
+// Still to update is the red one: those are the farmers who need attention.
+export const REMAINING_COLOR = "#a31515";
 
-// How far the update of last year's farmers has got: farmers confirmed
-// or edited (continued), farmers who dropped out, and farmers still to do.
-// Each line is a button that opens that list of farmers.
+// Colours for the bar: white text on green and red, dark text on sand.
+// callColor is the colour of the small label used for very narrow parts.
+export function barParts(continued, dropped, toUpdate) {
+  return [
+    {
+      key: "continued",
+      value: continued,
+      color: DONE_COLOR,
+      textColor: "#fff",
+      callColor: DONE_COLOR,
+    },
+    {
+      key: "dropped",
+      value: dropped,
+      color: DROPPED_COLOR,
+      textColor: "#3a2a10",
+      callColor: "#6b4a14",
+    },
+    {
+      key: "to_update",
+      value: toUpdate,
+      color: REMAINING_COLOR,
+      textColor: "#fff",
+      callColor: REMAINING_COLOR,
+    },
+  ];
+}
+
+// How far the update of last year's farmers has got: one bar split into
+// continued, dropped out and still to update (as percentages), and a tappable
+// pill for each with its number.
 function ProgressTracker({ lastYear, onOpen }) {
   const t = useT();
   const total = lastYear.total;
   const done = lastYear.continued + lastYear.dropped;
-  const percent = total > 0 ? Math.round((100 * done) / total) : 0;
-
-  const rows = [
-    {
-      key: "continued",
-      color: DONE_COLOR,
-      value: lastYear.continued,
-      label: t("trackerUpdated"),
-    },
-    {
-      key: "dropped",
-      color: DROPPED_COLOR,
-      value: lastYear.dropped,
-      label: t("trackerDropped"),
-    },
-    {
-      key: "to_update",
-      color: REMAINING_COLOR,
-      value: lastYear.to_update,
-      label: t("trackerRemaining"),
-    },
-  ];
+  const parts = barParts(
+    lastYear.continued,
+    lastYear.dropped,
+    lastYear.to_update,
+  );
+  const labels = {
+    continued: t("trackerUpdated"),
+    dropped: t("trackerDropped"),
+    to_update: t("trackerRemaining"),
+  };
 
   return (
-    <div className="card tracker">
+    <div className="lower">
       <h3>{t("trackerTitle", { total: total })}</h3>
 
       {total === 0 ? (
         <p>{t("trackerEmpty")}</p>
       ) : (
         <div>
-          <p className="tracker-count">
-            {t("trackerDone", { done: done, total: total })}
-          </p>
-          <div className="tracker-body">
-            <Donut
-              size={124}
-              stroke={18}
-              label={`${percent}%`}
-              name={t("trackerDone", { done: done, total: total })}
-              parts={rows.map((row) => ({
-                value: row.value,
-                color: row.color,
-              }))}
-            />
-            <div className="legend">
-              {rows.map((row) => (
-                <button
-                  key={row.key}
-                  className="legend-row"
-                  onClick={() => onOpen({ season: row.key })}
-                >
-                  <span
-                    className="swatch"
-                    style={{ background: row.color }}
-                    aria-hidden="true"
-                  />
-                  <span className="legend-number">{row.value}</span>
-                  <span className="legend-label">{row.label}</span>
-                  <span className="chevron-small" aria-hidden="true">
-                    ›
-                  </span>
-                </button>
-              ))}
-            </div>
+          <div className="tracker-head">
+            {Math.round((100 * done) / total)}%{" "}
+            <small>{t("trackerHeadline", { done: done, total: total })}</small>
           </div>
-          <p className="tracker-help">
-            {t("trackerHelp", { done: done, total: total })}
-          </p>
+
+          <StackedBar
+            percent
+            parts={parts}
+            name={t("trackerDone", { done: done, total: total })}
+          />
+
+          <PartChips
+            parts={parts.map((part) => ({
+              ...part,
+              label: labels[part.key],
+            }))}
+            onPick={(part) => onOpen({ season: part.key })}
+          />
+
+          {lastYear.to_update === 0 && (
+            <p className="all-done">{t("trackerAllDone")}</p>
+          )}
         </div>
       )}
     </div>

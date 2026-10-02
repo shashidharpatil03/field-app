@@ -116,6 +116,7 @@ function FarmerList({
     if (filters.q.trim()) params.set("q", filters.q.trim());
     if (filters.gender) params.set("gender", filters.gender);
     if (filters.growing) params.set("growing", filters.growing);
+    if (filters.water) params.set("water", filters.water);
     if (filters.season) params.set("season", filters.season);
     params.set("status", filters.status);
     params.set("limit", String(PAGE_SIZE));
@@ -160,6 +161,7 @@ function FarmerList({
     filters.status,
     filters.gender,
     filters.growing,
+    filters.water,
     filters.season,
     version,
   ]);
@@ -283,6 +285,7 @@ function FarmerList({
     filters.status !== "continuing" ||
     filters.gender !== "" ||
     filters.growing !== "" ||
+    filters.water !== "" ||
     filters.season !== "";
 
   function clearFilters() {
@@ -295,6 +298,7 @@ function FarmerList({
       status: "continuing",
       gender: "",
       growing: "",
+      water: "",
       season: "",
     });
     stopSelecting();
@@ -303,11 +307,17 @@ function FarmerList({
   // The filters that came from tapping a dashboard figure, shown as chips
   // that can each be removed.
   const chips = [];
-  if (filters.gender === "Female") {
-    chips.push({ name: "gender", text: t("chipWomen") });
+  if (filters.gender) {
+    chips.push({ name: "gender", text: t(`chipGender_${filters.gender}`) });
   }
-  if (filters.growing === "yes") {
-    chips.push({ name: "growing", text: t("chipGrowing") });
+  if (filters.growing) {
+    chips.push({ name: "growing", text: t(`chipGrowing_${filters.growing}`) });
+  }
+  if (filters.water) {
+    chips.push({
+      name: "water",
+      text: t(`chipWater_${filters.water.replace(" ", "_")}`),
+    });
   }
   if (filters.season) {
     chips.push({ name: "season", text: t(`seasonFilter_${filters.season}`) });

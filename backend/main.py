@@ -10,6 +10,8 @@ from pydantic import BaseModel
 
 from land_rules import check_draft_land, check_land, show_acres
 
+WATER_CHOICES = ["Rainfed", "Partially irrigated", "Fully irrigated"]
+
 app = FastAPI()
 
 app.add_middleware(
@@ -213,6 +215,12 @@ def list_lgs(user: dict = Depends(current_user)):
              AND ({continued_sql} OR {dropped_sql})) AS season_done,
             (SELECT COUNT(*) FROM farmers
              WHERE farmers.lg_id = learning_groups.id
+             AND {continued_sql}) AS season_continued,
+            (SELECT COUNT(*) FROM farmers
+             WHERE farmers.lg_id = learning_groups.id
+             AND {dropped_sql}) AS season_dropped,
+            (SELECT COUNT(*) FROM farmers
+             WHERE farmers.lg_id = learning_groups.id
              AND {new_sql}) AS new_count,
             (SELECT COUNT(*) FROM farmers
              WHERE farmers.lg_id = learning_groups.id
@@ -230,7 +238,8 @@ def list_lgs(user: dict = Depends(current_user)):
         WHERE (? = 'pu_manager' AND learning_groups.pu_id = ?)
            OR (? = 'facilitator' AND assignments.ff_id = ?)
         ORDER BY pus.code, learning_groups.lg_number
-    """, cohort_values + continued_values + dropped_values + new_values
+    """, cohort_values + continued_values + dropped_values
+        + continued_values + dropped_values + new_values
         + todo_values
         + [user["role"], user["pu_id"], user["role"], user["ff_id"]]).fetchall()
     connection.close()
@@ -401,6 +410,7 @@ def search_farmers(
     status: str = "continuing",
     gender: Optional[str] = None,
     growing: Optional[str] = None,
+    water: Optional[str] = None,
     season: Optional[str] = None,
     limit: int = 40,
     offset: int = 0,
@@ -415,6 +425,8 @@ def search_farmers(
         fail(None, 400, "Unknown gender")
     if growing not in (None, "yes", "no"):
         fail(None, 400, "Unknown value for growing")
+    if water is not None and water not in WATER_CHOICES + ["none"]:
+        fail(None, 400, "Unknown water regime")
     if season not in (None, "new", "continued", "dropped", "to_update", "this_year"):
         fail(None, 400, "Unknown season filter")
     limit = max(1, min(limit, 100))
@@ -441,6 +453,11 @@ def search_farmers(
     if growing is not None:
         conditions.append("farmers.growing_cotton = ?")
         values.append(1 if growing == "yes" else 0)
+    if water == "none":
+        conditions.append("farmers.water_regime IS NULL")
+    elif water is not None:
+        conditions.append("farmers.water_regime = ?")
+        values.append(water)
     if season is not None:
         # The season filters already say who is still in or out.
         sql, season_values = season_sql(season_start(date.today()).isoformat())[
@@ -534,18 +551,24 @@ def farmers_dashboard(user: dict = Depends(current_user)):
     # The figures about this season's farmers (continued + new). Farmers
     # who still have last season's details are not counted in them yet.
     sql, values = parts["this_year"]
-    total, growing, women, area = connection.execute(
+    total, growing, women, men, area, rainfed, partial, full, unknown = (
+        connection.execute(
         """
         SELECT COUNT(*),
                COALESCE(SUM(farmers.growing_cotton), 0),
                COALESCE(SUM(farmers.gender = 'Female'), 0),
-               COALESCE(SUM(farmers.area_under_cotton), 0)
+               COALESCE(SUM(farmers.gender = 'Male'), 0),
+               COALESCE(SUM(farmers.area_under_cotton), 0),
+               COALESCE(SUM(farmers.water_regime = 'Rainfed'), 0),
+               COALESCE(SUM(farmers.water_regime = 'Partially irrigated'), 0),
+               COALESCE(SUM(farmers.water_regime = 'Fully irrigated'), 0),
+               COALESCE(SUM(farmers.water_regime IS NULL), 0)
         """
         + DASHBOARD_FROM
         + " AND "
         + sql,
         scope + values,
-    ).fetchone()
+    ).fetchone())
 
     result = {
         "season": {"start": start, "label": season_label(first_day)},
@@ -555,7 +578,15 @@ def farmers_dashboard(user: dict = Depends(current_user)):
             "new": count("new"),
             "growing_cotton": growing,
             "women": women,
-            "women_percent": round(100 * women / total) if total else 0,
+            "men": men,
+            "other_gender": total - women - men,
+            "not_growing": total - growing,
+            "water": {
+                "Rainfed": rainfed,
+                "Partially irrigated": partial,
+                "Fully irrigated": full,
+                "none": unknown,
+            },
             "area_under_cotton": round(area, 1),
         },
         "last_year": {

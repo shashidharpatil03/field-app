@@ -15,6 +15,7 @@ const NO_FILTERS = {
   status: "continuing",
   gender: "",
   growing: "",
+  water: "",
   season: "",
 };
 

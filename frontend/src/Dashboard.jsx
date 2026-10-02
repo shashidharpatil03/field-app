@@ -3,8 +3,8 @@ import { useT } from "./i18n.jsx";
 import { apiFetch } from "./api.js";
 import { saveDashCache, readDashCache, formatWhen } from "./offline.js";
 import FarmerNav from "./FarmerNav.jsx";
-import FarmerSummary, { Hero } from "./FarmerSummary.jsx";
-import ProgressTracker from "./ProgressTracker.jsx";
+import FarmersCard from "./FarmersCard.jsx";
+import FarmerSummary from "./FarmerSummary.jsx";
 
 // The first screen of Farmer Data: the numbers, then how far the update of
 // last season's farmers has got. With no signal it shows the numbers saved
@@ -14,7 +14,8 @@ function Dashboard({ nav, onOpen }) {
   // A copy saved by an older version of the app has different numbers in
   // it, so it is ignored.
   const cached = readDashCache();
-  const saved = cached && cached.data && cached.data.this_year ? cached : null;
+  const saved =
+    cached && cached.data && cached.data.this_year?.water ? cached : null;
   const [data, setData] = useState(saved ? saved.data : null);
   // Set while we are showing the saved copy rather than fresh numbers.
   const [savedAt, setSavedAt] = useState(saved ? saved.savedAt : null);
@@ -47,8 +48,7 @@ function Dashboard({ nav, onOpen }) {
         </p>
       )}
 
-      <Hero data={data} onOpen={onOpen} />
-      {data && <ProgressTracker lastYear={data.last_year} onOpen={onOpen} />}
+      <FarmersCard data={data} onOpen={onOpen} />
       <FarmerSummary data={data} onOpen={onOpen} />
     </div>
   );

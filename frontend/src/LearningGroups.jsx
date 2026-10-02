@@ -1,6 +1,6 @@
 import FarmerNav from "./FarmerNav.jsx";
-import Donut from "./Donut.jsx";
-import { DONE_COLOR, REMAINING_COLOR } from "./ProgressTracker.jsx";
+import StackedBar from "./StackedBar.jsx";
+import { barParts } from "./ProgressTracker.jsx";
 import { useT } from "./i18n.jsx";
 import { formatWhen } from "./offline.js";
 
@@ -26,11 +26,9 @@ function LearningGroups({ lgs, isManager, savedCopyFrom, nav, onOpen }) {
         {lgs.map((lg) => {
           // A copy saved on the phone before this feature existed has no
           // season numbers, so show nothing extra for it.
-          const hasSeason = typeof lg.season_total === "number";
-          const percent =
-            hasSeason && lg.season_total > 0
-              ? Math.round((100 * lg.season_done) / lg.season_total)
-              : 0;
+          const hasSeason =
+            typeof lg.season_total === "number" &&
+            typeof lg.season_continued === "number";
           return (
             <li key={lg.id}>
               <button className="group-row" onClick={() => onOpen(lg)}>
@@ -66,25 +64,29 @@ function LearningGroups({ lgs, isManager, savedCopyFrom, nav, onOpen }) {
                       </span>
                     )}
                   </span>
+                  {hasSeason && lg.season_total > 0 && (
+                    <span className="group-progress">
+                      <StackedBar
+                        size="thin"
+                        parts={barParts(
+                          lg.season_continued,
+                          lg.season_dropped,
+                          lg.to_update_count,
+                        )}
+                        name={t("lgDone", {
+                          done: lg.season_done,
+                          total: lg.season_total,
+                        })}
+                      />
+                      <small>
+                        {t("lgDone", {
+                          done: lg.season_done,
+                          total: lg.season_total,
+                        })}
+                      </small>
+                    </span>
+                  )}
                 </span>
-                {hasSeason && lg.season_total > 0 && (
-                  <Donut
-                    size={56}
-                    stroke={8}
-                    label={`${percent}%`}
-                    name={t("trackerDone", {
-                      done: lg.season_done,
-                      total: lg.season_total,
-                    })}
-                    parts={[
-                      { value: lg.season_done, color: DONE_COLOR },
-                      {
-                        value: lg.season_total - lg.season_done,
-                        color: REMAINING_COLOR,
-                      },
-                    ]}
-                  />
-                )}
                 <span className="chevron" aria-hidden="true">
                   ›
                 </span>
