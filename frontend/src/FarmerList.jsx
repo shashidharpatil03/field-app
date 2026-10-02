@@ -1,20 +1,19 @@
 import { useState, useEffect } from "react";
 import { useT } from "./i18n.jsx";
 import { apiFetch } from "./api.js";
-import { PhoneIcon } from "./icons.jsx";
+import { PhoneIcon, FilterIcon } from "./icons.jsx";
 import FarmerNav from "./FarmerNav.jsx";
 
 const PAGE_SIZE = 40;
 
-// "Suresh Patil" -> "SP"
-function initials(name) {
-  return name
-    .split(" ")
-    .filter((word) => word !== "")
-    .slice(0, 2)
-    .map((word) => word[0].toUpperCase())
-    .join("");
-}
+// The four continuity buttons under the search bar, in this order. The
+// value is the "season" filter the server understands.
+const CONTINUITY = [
+  { value: "continued", label: "statusContinued", tone: "green" },
+  { value: "new", label: "statusNew", tone: "green" },
+  { value: "dropped", label: "droppedOut", tone: "tan" },
+  { value: "to_update", label: "statusToUpdate", tone: "red" },
+];
 
 // The farmer list with filters. The filters live in the parent
 // (FarmerData), so they are still set when you come back from a profile.
@@ -38,6 +37,7 @@ function FarmerList({
   const [version, setVersion] = useState(0);
   const [typed, setTyped] = useState(filters.q);
   const [picking, setPicking] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [localMessage, setLocalMessage] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState([]);
@@ -244,7 +244,7 @@ function FarmerList({
   // One label for where the farmer stands this season.
   function chip(f) {
     const labels = {
-      new: ["continuing", t("statusNew")],
+      new: ["fnew", t("statusNew")],
       continued: ["continuing", t("statusContinued")],
       to_update: ["todo", t("statusToUpdate")],
       dropped: ["dropped_out", t("droppedOut")],
@@ -270,6 +270,13 @@ function FarmerList({
     filters.growing !== "" ||
     filters.water !== "" ||
     filters.season !== "";
+
+  // The icon turns dark green while something chosen inside the pop-up is on.
+  const popupFiltersOn =
+    filters.lgId !== "" ||
+    filters.villageId !== "" ||
+    filters.ffId !== "" ||
+    filters.status === "deleted";
 
   function clearFilters() {
     setTyped("");
@@ -301,15 +308,13 @@ function FarmerList({
       text: t(`chipWater_${filters.water.replace(" ", "_")}`),
     });
   }
-  if (filters.season) {
+  if (filters.season === "this_year") {
     chips.push({ name: "season", text: t(`seasonFilter_${filters.season}`) });
   }
 
   return (
     <div className="page">
       <FarmerNav active="farmers" {...nav} />
-      <h1>{t("farmersTitle")}</h1>
-
       {message && <p className="message">{message}</p>}
       {localMessage && <p className="message">{localMessage}</p>}
 
@@ -328,91 +333,130 @@ function FarmerList({
         </div>
       )}
 
-      <div className="filters">
-        <div className="field filter-wide">
-          <label htmlFor="search">{t("searchLabel")}</label>
-          <input
-            id="search"
-            type="text"
-            value={typed}
-            placeholder={t("searchPlaceholder")}
-            onChange={(e) => setTyped(e.target.value)}
-          />
-        </div>
+      <div className="search-row">
+        <input
+          id="search"
+          type="text"
+          aria-label={t("searchLabel")}
+          value={typed}
+          placeholder={t("searchPlaceholder")}
+          onChange={(e) => setTyped(e.target.value)}
+        />
+        <button
+          className={`filter-icon${popupFiltersOn ? " on" : ""}`}
+          aria-label={t("filtersTitle")}
+          onClick={() => setFilterOpen(true)}
+        >
+          <FilterIcon />
+        </button>
+      </div>
 
-        <div className="field">
-          <label htmlFor="f-village">{t("filterVillage")}</label>
-          <select
-            id="f-village"
-            value={filters.villageId}
-            onChange={(e) => changeFilter("villageId", e.target.value)}
+      <div className="cont-buttons">
+        {CONTINUITY.map((c) => (
+          <button
+            key={c.value}
+            className={`cont-btn ${c.tone}${
+              filters.season === c.value ? " sel" : ""
+            }`}
+            aria-pressed={filters.season === c.value}
+            disabled={filters.status === "deleted"}
+            onClick={() =>
+              setFilters({
+                ...filters,
+                status: "continuing",
+                season: filters.season === c.value ? "" : c.value,
+              })
+            }
           >
-            <option value="">{t("allVillages")}</option>
-            {villages.map((v) => (
-              <option key={v.id} value={String(v.id)}>
-                {v.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="field">
-          <label htmlFor="f-lg">{t("filterGroup")}</label>
-          <select
-            id="f-lg"
-            value={filters.lgId}
-            onChange={(e) => changeFilter("lgId", e.target.value)}
-          >
-            <option value="">{t("allGroups")}</option>
-            {lgChoices.map((lg) => (
-              <option key={lg.id} value={String(lg.id)}>
-                {lg.lg_code}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {isManager && (
-          <div className="field">
-            <label htmlFor="f-ff">{t("filterFf")}</label>
-            <select
-              id="f-ff"
-              value={filters.ffId}
-              onChange={(e) => changeFilter("ffId", e.target.value)}
-            >
-              <option value="">{t("allFfs")}</option>
-              {facilitators.map((f) => (
-                <option key={f.id} value={String(f.id)}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        <div className="field">
-          <label htmlFor="f-status">{t("statusLabel")}</label>
-          <select
-            id="f-status"
-            value={filters.status}
-            disabled={filters.season !== ""}
-            onChange={(e) => {
-              // Choosing a status replaces any season filter.
-              setFilters({ ...filters, status: e.target.value, season: "" });
-            }}
-          >
-            <option value="continuing">{t("statusContinuing")}</option>
-            <option value="dropped_out">{t("droppedOut")}</option>
-            <option value="all">{t("statusAll")}</option>
-            <option value="deleted">{t("statusDeleted")}</option>
-          </select>
-        </div>
+            {t(c.label)}
+          </button>
+        ))}
       </div>
 
       {filtersActive && (
         <button className="link-button" onClick={clearFilters}>
           {t("clearFilters")}
         </button>
+      )}
+
+      {filterOpen && (
+        <div className="sheet-back" onClick={() => setFilterOpen(false)}>
+          <div
+            className="sheet"
+            role="dialog"
+            aria-label={t("filtersTitle")}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2>{t("filtersTitle")}</h2>
+            <div className="field">
+              <label htmlFor="f-village">{t("filterVillage")}</label>
+              <select
+                id="f-village"
+                value={filters.villageId}
+                onChange={(e) => changeFilter("villageId", e.target.value)}
+              >
+                <option value="">{t("allVillages")}</option>
+                {villages.map((v) => (
+                  <option key={v.id} value={String(v.id)}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="f-lg">{t("filterGroup")}</label>
+              <select
+                id="f-lg"
+                value={filters.lgId}
+                onChange={(e) => changeFilter("lgId", e.target.value)}
+              >
+                <option value="">{t("allGroups")}</option>
+                {lgChoices.map((lg) => (
+                  <option key={lg.id} value={String(lg.id)}>
+                    {lg.lg_code}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {isManager && (
+              <div className="field">
+                <label htmlFor="f-ff">{t("filterFf")}</label>
+                <select
+                  id="f-ff"
+                  value={filters.ffId}
+                  onChange={(e) => changeFilter("ffId", e.target.value)}
+                >
+                  <option value="">{t("allFfs")}</option>
+                  {facilitators.map((f) => (
+                    <option key={f.id} value={String(f.id)}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <label className="check-line">
+              <input
+                type="checkbox"
+                checked={filters.status === "deleted"}
+                onChange={(e) =>
+                  setFilters({
+                    ...filters,
+                    status: e.target.checked ? "deleted" : "continuing",
+                    season: "",
+                  })
+                }
+              />
+              {t("showDeletedOnly")}
+            </label>
+            <div className="sheet-buttons">
+              <button onClick={clearFilters}>{t("clearFilters")}</button>
+              <button className="primary" onClick={() => setFilterOpen(false)}>
+                {t("showNFarmers", { n: total })}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {selectedLg && (
@@ -471,7 +515,7 @@ function FarmerList({
       )}
 
       <button className="primary" onClick={handleRegister}>
-        {t("registerFarmer")}
+        {t("addNewFarmer")}
       </button>
 
       {picking && (
@@ -523,34 +567,38 @@ function FarmerList({
           <li className="farmer-row" key={f.id}>
             <div>
               <button
-                className="farmer-main"
+                className="frow-top"
                 disabled={f.season_status === "deleted"}
                 onClick={() => onOpenFarmer(f.id)}
               >
-                <span className="avatar small" aria-hidden="true">
-                  {initials(f.name)}
-                </span>
-                <span className="farmer-text">
-                  <strong>{f.name}</strong>
-                  <small>{f.farmer_code}</small>
-                </span>
-                {chip(f)}
+                <strong>{f.name}</strong>
+                <span className="frow-code">{f.farmer_code}</span>
               </button>
-              {f.season_status === "deleted" ? (
-                <span className="no-mobile">
-                  {f.deleted_on} · {f.reason}
-                </span>
-              ) : f.mobile ? (
-                <a
-                  className="call"
-                  href={`tel:${f.mobile}`}
-                  aria-label={t("callFarmer", { name: f.name })}
+              <div className="frow-bottom">
+                <button
+                  className="frow-open"
+                  disabled={f.season_status === "deleted"}
+                  onClick={() => onOpenFarmer(f.id)}
                 >
-                  <PhoneIcon /> {f.mobile}
-                </a>
-              ) : (
-                <span className="no-mobile">{t("noMobile")}</span>
-              )}
+                  <span className="frow-village">{f.village}</span>
+                  {chip(f)}
+                </button>
+                {f.season_status === "deleted" ? (
+                  <span className="no-mobile">
+                    {f.deleted_on} · {f.reason}
+                  </span>
+                ) : f.mobile ? (
+                  <a
+                    className="call"
+                    href={`tel:${f.mobile}`}
+                    aria-label={t("callFarmer", { name: f.name })}
+                  >
+                    <PhoneIcon /> {f.mobile}
+                  </a>
+                ) : (
+                  <span className="no-mobile">{t("noMobile")}</span>
+                )}
+              </div>
             </div>
           </li>
         ))}

@@ -28,8 +28,6 @@ function LearningGroups({ lgs, isManager, savedCopyFrom, nav, onOpen }) {
     <div className="page">
       <FarmerNav active="lgs" {...nav} />
 
-      <h1>{t("tabLgs")}</h1>
-
       {savedCopyFrom && (
         <p className="offline-note">
           {t("offlineNote", { time: formatWhen(savedCopyFrom) })}

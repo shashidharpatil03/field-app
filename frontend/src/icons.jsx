@@ -109,3 +109,21 @@ export function HomeIcon() {
     </svg>
   );
 }
+
+// Three lines of shrinking length: the usual "filter" symbol.
+export function FilterIcon() {
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <path d="M3 5h18M6 12h12M10 19h4" />
+    </svg>
+  );
+}

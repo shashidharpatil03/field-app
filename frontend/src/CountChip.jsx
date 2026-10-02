@@ -3,11 +3,13 @@
 // is shown greyed out and cannot be tapped.
 function CountChip({ color, label, value, urgent, season, onPick }) {
   const classes = ["lgc-chip"];
-  if (urgent && value > 0) {
-    classes.push("urgent");
-  }
+  // three colour families: green (this season), red (still to update), tan (dropped)
   if (season) {
     classes.push("season");
+  } else if (urgent) {
+    classes.push("urgent");
+  } else {
+    classes.push("quiet");
   }
   return (
     <button
