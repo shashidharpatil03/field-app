@@ -19,9 +19,11 @@
   --bg: var(--fibre);
   --card: #ffffff;
   --text: var(--deep-blue);
-  --muted: #3d5164;
+  --muted: #4a5d70;
   --border: #8a7a66;
   --border-soft: #d6cfc0;
+  --border-card: #cfc6b4;
+  --shadow: 0 2px 8px rgba(15, 43, 64, 0.1);
   --primary: var(--deep-green);
   --primary-text: #ffffff;
   --heading: #6f4130;
@@ -32,7 +34,7 @@
   --warn-bg: #f3e3c3;
   --warn-text: #4a3000;
   --warn-border: #8a5a00;
-  --radius: 14px;
+  --radius: 18px;
 
   /* Poppins for headings, Roboto for everything else. Both are saved inside
      the app. Marathi text uses Poppins (which has Devanagari) for headings
@@ -75,11 +77,36 @@ h1 {
   max-width: 560px;
   margin: 0 auto;
   padding: 16px;
+  animation: screen-in 0.18s ease-out;
+}
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page {
+    animation: none;
+  }
+  button {
+    transition: none;
+  }
+  button:active:not(:disabled) {
+    transform: none;
+  }
 }
 
 .card {
   background: var(--card);
-  border: 1.5px solid var(--border);
+  border: 1.5px solid var(--border-card);
+  box-shadow: var(--shadow);
   border-radius: var(--radius);
   padding: 14px;
   margin-bottom: 12px;
@@ -100,11 +127,16 @@ button {
   min-height: 48px;
   padding: 10px 16px;
   margin: 8px 8px 0 0;
-  border-radius: 10px;
+  border-radius: 14px;
   border: 2px solid var(--primary);
   background: var(--card);
   color: var(--primary);
   cursor: pointer;
+  transition: transform 0.1s ease-out;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 button:disabled {
@@ -118,8 +150,8 @@ select {
   width: 100%;
   min-height: 48px;
   padding: 10px;
-  border-radius: 10px;
-  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  border: 2px solid var(--border);
   background: var(--card);
   color: var(--text);
 }
@@ -230,8 +262,8 @@ input[type="text"] {
   min-height: 48px;
   box-sizing: border-box;
   padding: 10px;
-  border-radius: 10px;
-  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  border: 2px solid var(--border);
   background: var(--card);
   color: var(--text);
 }
@@ -411,6 +443,13 @@ button.primary:disabled {
   text-align: center;
 }
 
+.topbar-bg {
+  background: linear-gradient(180deg, #e7ddc6 0%, #efe8d6 100%);
+  border-radius: 0 0 28px 28px;
+  padding-bottom: 16px;
+  margin-bottom: 4px;
+}
+
 .topbar {
   max-width: 560px;
   margin: 0 auto;
@@ -548,7 +587,8 @@ button.primary:disabled {
   gap: 8px;
   margin: 0;
   padding: 14px;
-  border: 1.5px solid var(--border);
+  border: 1.5px solid var(--border-card);
+  box-shadow: var(--shadow);
   border-radius: var(--radius);
   background: var(--card);
   color: var(--text);
@@ -560,14 +600,15 @@ button.primary:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  box-shadow: 0 2px 6px rgba(15, 43, 64, 0.18);
 }
 
 .menu-icon svg {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
 }
 
 .menu-label {
@@ -583,28 +624,48 @@ button.primary:disabled {
   line-height: 1.2;
 }
 
+.tile-farmers {
+  background: linear-gradient(160deg, #ffffff 45%, #e4f2d6);
+}
+
 .tile-farmers .menu-icon {
-  background: var(--fresh-green);
-  color: var(--deep-green);
-}
-
-.tile-practice .menu-icon {
-  background: var(--sand);
-  color: #4a2a1d;
-}
-
-.tile-capacity .menu-icon {
-  background: var(--fresh-blue);
-  color: var(--deep-blue);
-}
-
-.tile-rir .menu-icon {
-  background: var(--soil);
+  background: linear-gradient(135deg, var(--mid-green), var(--deep-green));
   color: #ffffff;
 }
 
+.tile-practice {
+  background: linear-gradient(160deg, #ffffff 45%, #f3e8d8);
+}
+
+.tile-practice .menu-icon {
+  background: linear-gradient(135deg, #ead7bc, var(--sand));
+  color: #4a2a1d;
+}
+
+.tile-capacity {
+  background: linear-gradient(160deg, #ffffff 45%, #e3ebfb);
+}
+
+.tile-capacity .menu-icon {
+  background: linear-gradient(135deg, var(--mid-blue), var(--deep-blue));
+  color: #ffffff;
+}
+
+.tile-rir {
+  background: linear-gradient(160deg, #ffffff 45%, #f1e1d9);
+}
+
+.tile-rir .menu-icon {
+  background: linear-gradient(135deg, #b0745f, var(--soil));
+  color: #ffffff;
+}
+
+.tile-pu {
+  background: linear-gradient(160deg, #ffffff 45%, #dde4ea);
+}
+
 .tile-pu .menu-icon {
-  background: var(--deep-blue);
+  background: linear-gradient(135deg, #24506f, var(--deep-blue));
   color: #ffffff;
 }
 
@@ -612,7 +673,8 @@ button.primary:disabled {
 
 .sync-strip {
   margin-top: 16px;
-  background: var(--deep-blue);
+  background: linear-gradient(135deg, #1a4560, var(--deep-blue));
+  box-shadow: var(--shadow);
   color: var(--primary-text);
   padding: 14px 16px;
   border-radius: var(--radius);
@@ -680,7 +742,8 @@ button.primary:disabled {
 
 .stat {
   background: var(--card);
-  border: 1.5px solid var(--border);
+  border: 1.5px solid var(--border-card);
+  box-shadow: var(--shadow);
   border-radius: var(--radius);
   padding: 12px;
 }
@@ -745,7 +808,8 @@ button.primary:disabled {
   padding: 12px 14px;
   text-align: left;
   font-weight: 400;
-  border: 1.5px solid var(--border);
+  border: 1.5px solid var(--border-card);
+  box-shadow: var(--shadow);
   border-radius: var(--radius);
   background: var(--card);
   color: var(--text);
@@ -898,7 +962,8 @@ button.primary:disabled {
   margin: 0 0 12px;
   padding: 12px;
   background: var(--card);
-  border: 1.5px solid var(--border);
+  border: 1.5px solid var(--border-card);
+  box-shadow: var(--shadow);
   border-radius: var(--radius);
 }
 
@@ -924,4 +989,69 @@ button.primary:disabled {
 
 .season-numbers .stat-label {
   font-size: 14px;
+}
+
+/* ---- dashboard visuals ---- */
+
+.stat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ring {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+}
+
+.ring-back {
+  fill: none;
+  stroke: #e3dccb;
+  stroke-width: 7;
+}
+
+.ring-front {
+  fill: none;
+  stroke: var(--deep-green);
+  stroke-width: 7;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
+
+.bar {
+  height: 8px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: #e3dccb;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--deep-green);
+}
+
+.season-numbers > div {
+  padding-top: 6px;
+  border-top: 4px solid var(--mid-blue);
+}
+
+.season-numbers .s-added {
+  border-top-color: var(--deep-green);
+}
+
+.season-numbers .s-dropped {
+  border-top-color: var(--danger);
+}
+
+.season-numbers .s-updated .stat-number {
+  color: var(--mid-blue);
+}
+
+.season-numbers .s-dropped .stat-number {
+  color: var(--danger);
 }

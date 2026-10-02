@@ -92,7 +92,7 @@ function FarmerData({ onHome, user }) {
 
   if (profileId !== null) {
     return (
-      <div className="page">
+      <div key="profile" className="page">
         <FarmerProfile
           farmerId={profileId}
           onBack={() => {
@@ -106,7 +106,7 @@ function FarmerData({ onHome, user }) {
 
   if (registerLg !== null) {
     return (
-      <div className="page">
+      <div key="register" className="page">
         <RegisterFarmer
           lgId={registerLg.id}
           lgCode={registerLg.lg_code}
@@ -126,6 +126,7 @@ function FarmerData({ onHome, user }) {
   if (screen === "farmers") {
     return (
       <FarmerList
+        key="farmers"
         lgs={lgs}
         filters={filters}
         setFilters={setFilters}
@@ -141,6 +142,7 @@ function FarmerData({ onHome, user }) {
 
   return (
     <LearningGroups
+      key="groups"
       lgs={lgs}
       isManager={isManager}
       savedCopyFrom={savedCopyFrom}

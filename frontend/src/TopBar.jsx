@@ -14,31 +14,36 @@ function initials(name) {
 
 // The bar at the top of every screen after sign-in: logo on the left, the
 // name of the form in the middle, language on the right. On the home screen
-// (no form open) the welcome line appears below it.
+// (no form open) the greeting appears below it.
 function TopBar({ user, titleKey }) {
   const t = useT();
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12 ? "greetMorning" : hour < 17 ? "greetAfternoon" : "greetEvening";
 
   return (
-    <div className="topbar">
-      <div className="header-row">
-        <Logo className="header-logo" />
-        <div className="header-title">{titleKey ? t(titleKey) : ""}</div>
-        <LanguageToggle />
-      </div>
+    <div className="topbar-bg">
+      <div className="topbar">
+        <div className="header-row">
+          <Logo className="header-logo" />
+          <div className="header-title">{titleKey ? t(titleKey) : ""}</div>
+          <LanguageToggle />
+        </div>
 
-      {!titleKey && (
-        <div className="welcome-block">
-          <div className="avatar" aria-hidden="true">
-            {initials(user.name)}
-          </div>
-          <div>
-            <div className="welcome">{t("welcome", { name: user.name })}</div>
-            <div className="who">
-              {t(`role_${user.role}`)} · {user.pu_name}
+        {!titleKey && (
+          <div className="welcome-block">
+            <div className="avatar" aria-hidden="true">
+              {initials(user.name)}
+            </div>
+            <div>
+              <div className="welcome">{t(greeting, { name: user.name })}</div>
+              <div className="who">
+                {t(`role_${user.role}`)} · {user.pu_name}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

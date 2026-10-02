@@ -13,7 +13,9 @@ export const translations = {
     usersFailed: "Could not load the users. Is the backend running?",
     role_pu_manager: "PU manager",
     role_facilitator: "Field facilitator",
-    welcome: "Welcome, {name}",
+    greetMorning: "Good morning, {name}",
+    greetAfternoon: "Good afternoon, {name}",
+    greetEvening: "Good evening, {name}",
     logOut: "Log out",
     home: "Home",
     back: "Back",
@@ -27,7 +29,7 @@ export const translations = {
 
     statParticipating: "Farmers participating",
     statWomen: "Women farmers",
-    statWomenShare: "{pct}% of participating",
+    statShare: "{pct}% of participating",
     statArea: "Area under cotton (acres)",
     seasonTitle: "This season",
     seasonSince: "Since {date}",
@@ -162,7 +164,9 @@ export const translations = {
     usersFailed: "वापरकर्ते लोड होऊ शकले नाहीत. बॅकएंड सुरू आहे का?",
     role_pu_manager: "पीयू व्यवस्थापक",
     role_facilitator: "फील्ड फॅसिलिटेटर",
-    welcome: "स्वागत आहे, {name}",
+    greetMorning: "शुभ प्रभात, {name}",
+    greetAfternoon: "शुभ दुपार, {name}",
+    greetEvening: "शुभ संध्या, {name}",
     logOut: "लॉग आउट",
     home: "मुख्यपृष्ठ",
     back: "मागे",
@@ -176,7 +180,7 @@ export const translations = {
 
     statParticipating: "सहभागी शेतकरी",
     statWomen: "महिला शेतकरी",
-    statWomenShare: "सहभागींपैकी {pct}%",
+    statShare: "सहभागींपैकी {pct}%",
     statArea: "कापसाखालील क्षेत्र (एकर)",
     seasonTitle: "या हंगामात",
     seasonSince: "{date} पासून",
@@ -308,7 +312,7 @@ export function useLanguage() {
   return useContext(LanguageContext);
 }
 
-// t("welcome", { name: "Ravi" }) gives the text in the chosen language.
+// t("greetMorning", { name: "Ravi" }) gives the text in the chosen language.
 export function useT() {
   const { lang } = useContext(LanguageContext);
   return function t(key, values = {}) {
