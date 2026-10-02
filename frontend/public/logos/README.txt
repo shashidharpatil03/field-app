@@ -1,6 +1,6 @@
-Put the two logo files here, with exactly these names:
+The Co-farm logo goes here:
 
-  bci.png      (Better Cotton logo)
-  cofarm.png   (Cofarm logo)
+  co-farm-logo-png.png   (used by the app)
+  co-farm-logo-svg.svg   (spare copy)
 
-Until the files exist, the login screen shows the names as plain text.
+If the PNG is missing, the app shows the name "Co-farm" as plain text.

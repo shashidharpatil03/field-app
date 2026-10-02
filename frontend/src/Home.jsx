@@ -16,11 +16,11 @@ const MODULES = [
   { id: "pu", labelKey: "menu_pu", Icon: PuIcon, managerOnly: true },
 ];
 
-function Home({ onOpen, user }) {
+function Home({ onOpen, user, onLogOut }) {
   const t = useT();
 
   return (
-    <div className="page home-page">
+    <div className="page">
       <div className="menu">
         {MODULES.filter(
           (m) => !m.managerOnly || user.role === "pu_manager",
@@ -40,6 +40,10 @@ function Home({ onOpen, user }) {
       </div>
 
       <SyncStrip onOpen={() => onOpen("sync")} />
+
+      <button className="link-button logout" onClick={onLogOut}>
+        {t("logOut")}
+      </button>
     </div>
   );
 }

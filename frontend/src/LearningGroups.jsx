@@ -1,4 +1,6 @@
+import { useEffect, useRef } from "react";
 import FarmerSummary from "./FarmerSummary.jsx";
+import FarmerNav from "./FarmerNav.jsx";
 import { useT } from "./i18n.jsx";
 import { formatWhen } from "./offline.js";
 
@@ -8,29 +10,35 @@ function LearningGroups({
   lgs,
   isManager,
   savedCopyFrom,
-  onHome,
+  nav,
+  scrollSignal,
   onOpen,
-  onOpenAll,
 }) {
   const t = useT();
+  const listTop = useRef(null);
+
+  // The "LGs" button asks us to scroll down to the group list.
+  useEffect(() => {
+    if (scrollSignal > 0 && listTop.current) {
+      listTop.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [scrollSignal]);
 
   return (
     <div className="page">
-      <button className="home-button" onClick={onHome}>
-        ← {t("home")}
-      </button>
+      <FarmerNav active="lgs" {...nav} />
 
       <FarmerSummary refreshKey={lgs} />
 
-      <h1>{t("tabLgs")}</h1>
+      <h1 ref={listTop} className="scroll-target">
+        {t("tabLgs")}
+      </h1>
 
       {savedCopyFrom && (
         <p className="offline-note">
           {t("offlineNote", { time: formatWhen(savedCopyFrom) })}
         </p>
       )}
-
-      <button onClick={onOpenAll}>{t("viewAllFarmers")}</button>
 
       <ul className="group-list">
         {lgs.map((lg) => (

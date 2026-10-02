@@ -24,6 +24,7 @@ function FarmerData({ onHome, user }) {
   const [screen, setScreen] = useState("groups");
   const [filters, setFilters] = useState(NO_FILTERS);
   const [message, setMessage] = useState("");
+  const [scrollSignal, setScrollSignal] = useState(0);
   const [profileId, setProfileId] = useState(null);
   const [registerLg, setRegisterLg] = useState(null);
   const [registerDraft, setRegisterDraft] = useState(null);
@@ -67,6 +68,16 @@ function FarmerData({ onHome, user }) {
     setFilters(NO_FILTERS);
     setScreen("farmers");
   }
+
+  // The "LGs" button: show the group list and scroll down to it.
+  function showGroups() {
+    setMessage("");
+    setScreen("groups");
+    setScrollSignal(scrollSignal + 1);
+    loadLgs();
+  }
+
+  const nav = { onHome: onHome, onLgs: showGroups, onAll: openAll };
 
   function startRegister(lg, draft) {
     setMessage("");
@@ -120,11 +131,7 @@ function FarmerData({ onHome, user }) {
         setFilters={setFilters}
         isManager={isManager}
         message={message}
-        onBack={() => {
-          setMessage("");
-          setScreen("groups");
-          loadLgs();
-        }}
+        nav={nav}
         onOpenFarmer={setProfileId}
         onRegister={startRegister}
         onChanged={loadLgs}
@@ -137,9 +144,9 @@ function FarmerData({ onHome, user }) {
       lgs={lgs}
       isManager={isManager}
       savedCopyFrom={savedCopyFrom}
-      onHome={onHome}
+      nav={nav}
+      scrollSignal={scrollSignal}
       onOpen={openGroup}
-      onOpenAll={openAll}
     />
   );
 }

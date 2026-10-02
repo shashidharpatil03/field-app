@@ -2,24 +2,7 @@ import { useState, useEffect } from "react";
 import { useT } from "./i18n.jsx";
 import LanguageToggle from "./LanguageToggle.jsx";
 import { apiFetch } from "./api.js";
-
-// Shows the logo image from public/logos. If the file is missing,
-// it shows the name as plain text instead.
-function Logo({ file, name }) {
-  const [failed, setFailed] = useState(false);
-
-  if (failed) {
-    return <span className="logo-fallback">{name}</span>;
-  }
-  return (
-    <img
-      className="logo"
-      src={`/logos/${file}`}
-      alt={name}
-      onError={() => setFailed(true)}
-    />
-  );
-}
+import Logo from "./Logo.jsx";
 
 function Login({ onLogin }) {
   const t = useT();
@@ -49,8 +32,7 @@ function Login({ onLogin }) {
       </div>
 
       <div className="logos">
-        <Logo file="bci.png" name="Better Cotton" />
-        <Logo file="cofarm.png" name="Cofarm" />
+        <Logo />
       </div>
 
       <h1>{t("appName")}</h1>

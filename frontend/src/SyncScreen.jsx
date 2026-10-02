@@ -55,15 +55,16 @@ function SyncScreen({ onHome }) {
     return item.data.name.trim() || t("unnamedFarmer");
   }
 
-  const rejected = report ? report.results.filter((r) => r.status !== "done") : [];
+  const rejected = report
+    ? report.results.filter((r) => r.status !== "done")
+    : [];
   const doneCount = report ? report.results.length - rejected.length : 0;
 
   return (
     <div className="page">
       <button className="home-button" onClick={onHome}>
-        ← {t("home")}
+        ← {t("back")}
       </button>
-      <h1>{t("menu_sync")}</h1>
 
       <p className={online ? "online-note" : "offline-note"}>
         {online ? t("netOnline") : t("netOffline")}
@@ -79,7 +80,9 @@ function SyncScreen({ onHome }) {
       </button>
 
       {report && report.failed && <p className="error">{t("syncFailed")}</p>}
-      {report && report.offline && <p className="error">{t("syncStillOffline")}</p>}
+      {report && report.offline && (
+        <p className="error">{t("syncStillOffline")}</p>
+      )}
       {report && !report.offline && !report.failed && (
         <p className="message">{t("syncDone", { n: doneCount })}</p>
       )}
@@ -98,8 +101,7 @@ function SyncScreen({ onHome }) {
             <div className="card" key={item.key}>
               <h3>{describe(item)}</h3>
               <p>
-                {item.lgCode} ·{" "}
-                {item.submit ? t("kindFarmer") : t("kindDraft")}
+                {item.lgCode} · {item.submit ? t("kindFarmer") : t("kindDraft")}
               </p>
               <p>
                 <small>

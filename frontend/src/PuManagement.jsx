@@ -108,9 +108,8 @@ function PuManagement({ onHome }) {
   return (
     <div className="page">
       <button className="home-button" onClick={onHome}>
-        ← {t("home")}
+        ← {t("back")}
       </button>
-      <h1>{t("menu_pu")}</h1>
 
       {message && <p className="message">{message}</p>}
 

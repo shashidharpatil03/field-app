@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 330 96" width="330" height="96" role="img" aria-label="Co-farm">
+  <title>Co-farm</title>
+  <g transform="translate(0,8)">
+    <rect width="80" height="80" rx="20" fill="#2E7D32"/>
+    <path d="M40 72 V46" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" fill="none"/>
+    <path d="M40 52 C40 38 28 32 17 34 C17 46 27 54 40 52 Z" fill="#FFFFFF"/>
+    <path d="M40 46 C40 30 52 20 65 22 C65 36 54 48 40 46 Z" fill="#C5E1A5"/>
+  </g>
+  <text x="98" y="66" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="48" font-weight="700" letter-spacing="-0.5">
+    <tspan fill="#1B5E20">Co</tspan><tspan fill="#2E7D32">-farm</tspan>
+  </text>
+</svg>

@@ -16,6 +16,8 @@ export const translations = {
     welcome: "Welcome, {name}",
     logOut: "Log out",
     home: "Home",
+    back: "Back",
+    navLgs: "LGs",
     comingSoon: "This module is not built yet.",
 
     menu_farmers: "Farmer Data",
@@ -74,7 +76,8 @@ export const translations = {
     clearFilters: "Clear filters",
     chooseGroupToRegister: "Choose the group to register the farmer in",
     chooseGroupOption: "Choose a group...",
-    listOffline: "Could not load the farmer list. Check your connection. You can still register a farmer and send it later from Sync.",
+    listOffline:
+      "Could not load the farmer list. Check your connection. You can still register a farmer and send it later from Sync.",
     tryAgain: "Try again",
     loading: "Loading...",
     showingCount: "Showing {shown} of {total} farmers",
@@ -106,7 +109,8 @@ export const translations = {
     syncNow: "Sync now ({n} waiting)",
     syncing: "Syncing...",
     syncDone: "{n} item(s) sent to the server.",
-    syncStillOffline: "Still no connection. Nothing was lost. Try again when you have signal.",
+    syncStillOffline:
+      "Still no connection. Nothing was lost. Try again when you have signal.",
     syncFailed: "Sync failed. Please try again.",
     nothingPending: "Nothing is waiting. Everything is on the server.",
     waitingTitle: "Waiting to be sent",
@@ -127,9 +131,11 @@ export const translations = {
     farmersCount: "{n} farmers",
     ffAdded: "{name} was added.",
     leaveTitle: "{name} is leaving",
-    leaveHelp: "Choose a new facilitator for each learning group. Nothing changes until you confirm.",
+    leaveHelp:
+      "Choose a new facilitator for each learning group. Nothing changes until you confirm.",
     leaveNoGroups: "This facilitator has no learning groups.",
-    leaveNoOthers: "There is no other active facilitator in your PU. Add one first.",
+    leaveNoOthers:
+      "There is no other active facilitator in your PU. Add one first.",
     assignAll: "Give all groups to",
     chooseFf: "Choose a facilitator...",
     stillToChoose: "Still to choose: {n}",
@@ -143,13 +149,16 @@ export const translations = {
     chooseUser: "तुमचे नाव निवडा",
     chooseUserOption: "निवडा...",
     signIn: "साइन इन करा",
-    demoNote: "डेमो साइन-इन. पासवर्ड वापरला जात नाही आणि सर्व वापरकर्ते काल्पनिक आहेत.",
+    demoNote:
+      "डेमो साइन-इन. पासवर्ड वापरला जात नाही आणि सर्व वापरकर्ते काल्पनिक आहेत.",
     usersFailed: "वापरकर्ते लोड होऊ शकले नाहीत. बॅकएंड सुरू आहे का?",
     role_pu_manager: "पीयू व्यवस्थापक",
     role_facilitator: "फील्ड फॅसिलिटेटर",
     welcome: "स्वागत आहे, {name}",
     logOut: "लॉग आउट",
     home: "मुख्यपृष्ठ",
+    back: "मागे",
+    navLgs: "गट",
     comingSoon: "हे मॉड्यूल अद्याप तयार नाही.",
 
     menu_farmers: "शेतकरी माहिती",
@@ -208,7 +217,8 @@ export const translations = {
     clearFilters: "फिल्टर काढा",
     chooseGroupToRegister: "शेतकऱ्याची नोंदणी कोणत्या गटात करायची ते निवडा",
     chooseGroupOption: "गट निवडा...",
-    listOffline: "शेतकऱ्यांची यादी उघडता आली नाही. कनेक्शन तपासा. तरीही तुम्ही शेतकऱ्याची नोंदणी करून नंतर सिंक मधून पाठवू शकता.",
+    listOffline:
+      "शेतकऱ्यांची यादी उघडता आली नाही. कनेक्शन तपासा. तरीही तुम्ही शेतकऱ्याची नोंदणी करून नंतर सिंक मधून पाठवू शकता.",
     tryAgain: "पुन्हा प्रयत्न करा",
     loading: "लोड होत आहे...",
     showingCount: "{total} पैकी {shown} शेतकरी दाखवत आहे",
@@ -240,7 +250,8 @@ export const translations = {
     syncNow: "आता सिंक करा ({n} प्रतीक्षेत)",
     syncing: "सिंक होत आहे...",
     syncDone: "{n} नोंदी सर्व्हरवर पाठवल्या.",
-    syncStillOffline: "अजूनही कनेक्शन नाही. काहीही गमावलेले नाही. नेटवर्क मिळाल्यावर पुन्हा प्रयत्न करा.",
+    syncStillOffline:
+      "अजूनही कनेक्शन नाही. काहीही गमावलेले नाही. नेटवर्क मिळाल्यावर पुन्हा प्रयत्न करा.",
     syncFailed: "सिंक अयशस्वी. कृपया पुन्हा प्रयत्न करा.",
     nothingPending: "काहीही प्रतीक्षेत नाही. सर्व काही सर्व्हरवर आहे.",
     waitingTitle: "पाठवण्याच्या प्रतीक्षेत",
@@ -261,14 +272,17 @@ export const translations = {
     farmersCount: "{n} शेतकरी",
     ffAdded: "{name} यांना जोडले.",
     leaveTitle: "{name} सोडून जात आहेत",
-    leaveHelp: "प्रत्येक लर्निंग ग्रुपसाठी नवीन फॅसिलिटेटर निवडा. तुम्ही खात्री करेपर्यंत काहीही बदलत नाही.",
+    leaveHelp:
+      "प्रत्येक लर्निंग ग्रुपसाठी नवीन फॅसिलिटेटर निवडा. तुम्ही खात्री करेपर्यंत काहीही बदलत नाही.",
     leaveNoGroups: "या फॅसिलिटेटरकडे कोणताही लर्निंग ग्रुप नाही.",
-    leaveNoOthers: "तुमच्या पीयूमध्ये दुसरा सक्रिय फॅसिलिटेटर नाही. आधी एक जोडा.",
+    leaveNoOthers:
+      "तुमच्या पीयूमध्ये दुसरा सक्रिय फॅसिलिटेटर नाही. आधी एक जोडा.",
     assignAll: "सर्व ग्रुप यांना द्या",
     chooseFf: "फॅसिलिटेटर निवडा...",
     stillToChoose: "अजून निवडायचे: {n}",
     confirmLeave: "खात्री करा आणि सोडून गेले म्हणून नोंदवा",
-    leftDone: "{name} सोडून गेले म्हणून नोंदवले. {n} लर्निंग ग्रुप दुसऱ्यांना दिले.",
+    leftDone:
+      "{name} सोडून गेले म्हणून नोंदवले. {n} लर्निंग ग्रुप दुसऱ्यांना दिले.",
   },
 };
 

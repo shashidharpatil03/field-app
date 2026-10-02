@@ -1,5 +1,6 @@
 import { useT } from "./i18n.jsx";
 import LanguageToggle from "./LanguageToggle.jsx";
+import Logo from "./Logo.jsx";
 
 // "Ravi Kumar" -> "RK"
 function initials(name) {
@@ -11,26 +12,33 @@ function initials(name) {
     .join("");
 }
 
-function TopBar({ user, onLogOut }) {
+// The bar at the top of every screen after sign-in: logo on the left, the
+// name of the form in the middle, language on the right. On the home screen
+// (no form open) the welcome line appears below it.
+function TopBar({ user, titleKey }) {
   const t = useT();
 
   return (
     <div className="topbar">
-      <div className="topbar-row">
-        <div className="avatar" aria-hidden="true">
-          {initials(user.name)}
-        </div>
-        <div className="topbar-text">
-          <div className="welcome">{t("welcome", { name: user.name })}</div>
-          <div className="who">
-            {t(`role_${user.role}`)} · {user.pu_name}
-          </div>
-        </div>
+      <div className="header-row">
+        <Logo className="header-logo" />
+        <div className="header-title">{titleKey ? t(titleKey) : ""}</div>
         <LanguageToggle />
       </div>
-      <button className="link-button" onClick={onLogOut}>
-        {t("logOut")}
-      </button>
+
+      {!titleKey && (
+        <div className="welcome-block">
+          <div className="avatar" aria-hidden="true">
+            {initials(user.name)}
+          </div>
+          <div>
+            <div className="welcome">{t("welcome", { name: user.name })}</div>
+            <div className="who">
+              {t(`role_${user.role}`)} · {user.pu_name}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

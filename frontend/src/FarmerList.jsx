@@ -3,6 +3,7 @@ import { useT } from "./i18n.jsx";
 import { apiFetch } from "./api.js";
 import BulkParticipation from "./BulkParticipation.jsx";
 import { PhoneIcon } from "./icons.jsx";
+import FarmerNav from "./FarmerNav.jsx";
 
 const PAGE_SIZE = 40;
 
@@ -24,7 +25,7 @@ function FarmerList({
   setFilters,
   isManager,
   message,
-  onBack,
+  nav,
   onOpenFarmer,
   onRegister,
   onChanged,
@@ -187,7 +188,7 @@ function FarmerList({
     }
     try {
       const response = await apiFetch(
-        `http://localhost:8000/lgs/${selectedLg.id}/assignments`
+        `http://localhost:8000/lgs/${selectedLg.id}/assignments`,
       );
       if (response.ok) {
         setHistory(await response.json());
@@ -200,7 +201,7 @@ function FarmerList({
 
   async function loadDrafts() {
     const response = await apiFetch(
-      `http://localhost:8000/lgs/${selectedLg.id}/drafts`
+      `http://localhost:8000/lgs/${selectedLg.id}/drafts`,
     );
     if (response.ok) {
       setDrafts(await response.json());
@@ -289,9 +290,7 @@ function FarmerList({
 
   return (
     <div className="page">
-      <button className="home-button" onClick={onBack}>
-        ← {t("tabLgs")}
-      </button>
+      <FarmerNav active="farmers" {...nav} />
       <h1>{t("farmersTitle")}</h1>
 
       {message && <p className="message">{message}</p>}
@@ -489,7 +488,7 @@ function FarmerList({
               setSelectedIds(
                 items
                   .filter((f) => f.participation === "continuing")
-                  .map((f) => f.id)
+                  .map((f) => f.id),
               )
             }
           >

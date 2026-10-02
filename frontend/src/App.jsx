@@ -72,7 +72,7 @@ function App() {
   } else {
     let content;
     if (module === null) {
-      content = <Home onOpen={setModule} user={user} />;
+      content = <Home onOpen={setModule} user={user} onLogOut={handleLogOut} />;
     } else if (module === "farmers") {
       content = <FarmerData user={user} onHome={() => setModule(null)} />;
     } else if (module === "pu" && user.role === "pu_manager") {
@@ -80,16 +80,11 @@ function App() {
     } else if (module === "sync") {
       content = <SyncScreen onHome={() => setModule(null)} />;
     } else {
-      content = (
-        <ComingSoon
-          labelKey={`menu_${module}`}
-          onHome={() => setModule(null)}
-        />
-      );
+      content = <ComingSoon onHome={() => setModule(null)} />;
     }
     screen = (
       <div>
-        <TopBar user={user} onLogOut={handleLogOut} />
+        <TopBar user={user} titleKey={module ? `menu_${module}` : null} />
         {content}
       </div>
     );

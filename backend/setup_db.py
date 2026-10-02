@@ -111,8 +111,8 @@ cursor.execute("""
 cursor.execute("CREATE UNIQUE INDEX farmers_mobile_unique ON farmers(mobile)")
 
 pus = [
-    ("INMH01", "Demo PU One"),
-    ("INMH02", "Demo PU Two"),
+    ("INMH01", "INMH01"),
+    ("INMH02", "INMH02"),
 ]
 villages = [
     ("Rampur", 1),
