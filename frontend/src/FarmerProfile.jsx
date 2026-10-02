@@ -1,13 +1,12 @@
 import { useState, useEffect } from "react";
 import EditFarmer from "./EditFarmer.jsx";
-import ParticipationChange from "./ParticipationChange.jsx";
 import DeleteFarmer from "./DeleteFarmer.jsx";
 import { apiFetch } from "./api.js";
 
 // Where this farmer stands in this season's update of last season's data.
 function SeasonStatus({ status, busy, error, onConfirm }) {
   const labels = {
-    new: "New this season",
+    new: "Newly added this season",
     continued: "Continued this season",
     dropped: "Dropped out this season",
     to_update: "Still to update this season",
@@ -40,6 +39,19 @@ function SeasonStatus({ status, busy, error, onConfirm }) {
     </div>
   );
 }
+
+const statusText = {
+  new: "Newly added",
+  continued: "Continued",
+  to_update: "Still to update",
+  dropped: "Dropped out",
+};
+const statusBadge = {
+  new: "continuing",
+  continued: "continuing",
+  to_update: "todo",
+  dropped: "dropped_out",
+};
 
 function FarmerProfile({ farmerId, onBack, onDeleted }) {
   const [farmer, setFarmer] = useState(null);
@@ -172,21 +184,17 @@ function FarmerProfile({ farmerId, onBack, onDeleted }) {
           </span>
         </div>
         <div className="profile-row">
-          <span className="label">Participation</span>
-          <span className={`badge ${farmer.participation}`}>
-            {farmer.participation === "continuing"
-              ? "Continuing"
-              : "Dropped out"}
+          <span className="label">Farmer continuity</span>
+          <span
+            className={`badge ${statusBadge[farmer.season_status] ?? (farmer.participation === "dropped_out" ? "dropped_out" : "continuing")}`}
+          >
+            {statusText[farmer.season_status] ??
+              (farmer.participation === "dropped_out"
+                ? "Dropped out"
+                : "Continuing")}
           </span>
         </div>
       </div>
-
-      {farmer.season_status !== "new" && (
-        <ParticipationChange
-          farmer={farmer}
-          onChanged={() => setVersion(version + 1)}
-        />
-      )}
 
       <div className="card">
         <div className="profile-row">

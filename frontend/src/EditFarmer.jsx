@@ -9,6 +9,14 @@ import {
 import LandFields from "./LandFields.jsx";
 import { apiFetch } from "./api.js";
 
+const DROP_REASONS = [
+  "Moved away",
+  "No longer growing cotton",
+  "Lost interest",
+  "Health or family reasons",
+  "Other",
+];
+
 function EditFarmer({ farmer, onCancel, onSaved }) {
   const [name, setName] = useState(farmer.name);
   const [gender, setGender] = useState(farmer.gender);
@@ -21,6 +29,8 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
     farmer.growing_cotton ? acresText(farmer.area_under_cotton) : "0",
   );
   const [water, setWater] = useState(farmer.water_regime ?? "");
+  const [status, setStatus] = useState(farmer.participation);
+  const [dropReason, setDropReason] = useState("");
   const [asking, setAsking] = useState(false);
   const [reason, setReason] = useState("");
   const [errors, setErrors] = useState({});
@@ -34,6 +44,11 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
       cotton: cotton,
       water: water,
     });
+    if (status === "dropped_out" && status !== farmer.participation) {
+      if (dropReason === "") {
+        found.participation = "Please choose a reason for dropping";
+      }
+    }
     setErrors(found);
     if (Object.keys(found).length > 0) {
       return;
@@ -73,6 +88,8 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
             water_regime: water,
             confirmed_large: confirmedLarge,
             reason: reason,
+            participation: status,
+            drop_reason: status === "dropped_out" ? dropReason : "",
           }),
         },
       );
@@ -162,6 +179,54 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
         setWater={setWater}
         errors={errors}
       />
+
+      {farmer.season_status !== "new" && (
+        <div className="field">
+          <label htmlFor="edit-status">Participation</label>
+          <select
+            id="edit-status"
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value);
+              setErrors({});
+            }}
+            className={errors.participation ? "has-error" : ""}
+          >
+            <option value="continuing">Continuing</option>
+            <option value="dropped_out">Dropped out</option>
+          </select>
+          {status === "continuing" &&
+            farmer.participation === "dropped_out" && (
+              <p className="note">
+                Bringing the farmer back. Please check the details above, then
+                save: this counts as updated for this season.
+              </p>
+            )}
+          {status === "dropped_out" &&
+            farmer.participation === "continuing" && (
+              <fieldset className="radio-group">
+                <legend>Reason for dropping</legend>
+                {DROP_REASONS.map((text) => (
+                  <label key={text} className="radio">
+                    <input
+                      type="radio"
+                      name="edit-drop-reason"
+                      checked={dropReason === text}
+                      onChange={() => {
+                        setDropReason(text);
+                        setErrors({});
+                      }}
+                    />
+                    {text}
+                  </label>
+                ))}
+              </fieldset>
+            )}
+          {errors.participation && (
+            <p className="error">{errors.participation}</p>
+          )}
+        </div>
+      )}
 
       <div className="field">
         <label htmlFor="edit-reason">Reason for change (optional)</label>

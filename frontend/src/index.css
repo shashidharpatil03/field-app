@@ -1510,6 +1510,13 @@ button.danger.solid {
   gap: 10px;
 }
 
+.group-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
 .group-village {
   font-family: var(--font-display);
   font-weight: 600;

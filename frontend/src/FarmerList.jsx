@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useT } from "./i18n.jsx";
 import { apiFetch } from "./api.js";
-import BulkParticipation from "./BulkParticipation.jsx";
 import { PhoneIcon } from "./icons.jsx";
 import FarmerNav from "./FarmerNav.jsx";
 
@@ -40,8 +39,6 @@ function FarmerList({
   const [typed, setTyped] = useState(filters.q);
   const [picking, setPicking] = useState(false);
   const [localMessage, setLocalMessage] = useState("");
-  const [selecting, setSelecting] = useState(false);
-  const [selectedIds, setSelectedIds] = useState([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState([]);
   const [draftsOpen, setDraftsOpen] = useState(false);
@@ -70,11 +67,6 @@ function FarmerList({
   const lgChoices = lgs.filter((lg) => fitsFilters(lg, filters));
   const selectedLg = lgs.find((lg) => String(lg.id) === filters.lgId) || null;
 
-  function stopSelecting() {
-    setSelecting(false);
-    setSelectedIds([]);
-  }
-
   function changeFilter(name, value) {
     const next = { ...filters, [name]: value };
     // Keep the group choice only if it still fits the village / facilitator.
@@ -85,7 +77,6 @@ function FarmerList({
       }
     }
     setFilters(next);
-    stopSelecting();
   }
 
   // Search as the person types, but wait a moment so we do not ask the
@@ -94,7 +85,6 @@ function FarmerList({
     const timer = setTimeout(() => {
       if (typed !== filters.q) {
         setFilters({ ...filters, q: typed });
-        stopSelecting();
       }
     }, 350);
     return () => clearTimeout(timer);
@@ -251,30 +241,23 @@ function FarmerList({
   }
 
   // ---- choosing several farmers ----
-  function togglePicked(id) {
-    if (selectedIds.includes(id)) {
-      setSelectedIds(selectedIds.filter((x) => x !== id));
-    } else {
-      setSelectedIds([...selectedIds, id]);
-    }
-  }
-
-  function bulkDone(text) {
-    stopSelecting();
-    setLocalMessage(text);
-    reload();
-    window.scrollTo({ top: 0 });
-  }
-
+  // One label for where the farmer stands this season.
   function chip(f) {
+    const labels = {
+      new: ["continuing", t("statusNew")],
+      continued: ["continuing", t("statusContinued")],
+      to_update: ["todo", t("statusToUpdate")],
+      dropped: ["dropped_out", t("droppedOut")],
+      deleted: ["neutral", t("statusDeleted")],
+    };
+    const found = labels[f.season_status];
+    if (found) {
+      return <span className={`badge ${found[0]}`}>{found[1]}</span>;
+    }
     if (f.participation === "dropped_out") {
       return <span className="badge dropped_out">{t("droppedOut")}</span>;
     }
-    return f.growing_cotton ? (
-      <span className="badge continuing">{t("chipCotton")}</span>
-    ) : (
-      <span className="badge neutral">{t("chipNoCotton")}</span>
-    );
+    return <span className="badge continuing">{t("statusContinuing")}</span>;
   }
 
   const filtersActive =
@@ -301,7 +284,6 @@ function FarmerList({
       water: "",
       season: "",
     });
-    stopSelecting();
   }
 
   // The filters that came from tapping a dashboard figure, shown as chips
@@ -417,12 +399,12 @@ function FarmerList({
             onChange={(e) => {
               // Choosing a status replaces any season filter.
               setFilters({ ...filters, status: e.target.value, season: "" });
-              stopSelecting();
             }}
           >
             <option value="continuing">{t("statusContinuing")}</option>
             <option value="dropped_out">{t("droppedOut")}</option>
             <option value="all">{t("statusAll")}</option>
+            <option value="deleted">{t("statusDeleted")}</option>
           </select>
         </div>
       </div>
@@ -532,36 +514,6 @@ function FarmerList({
         </p>
       )}
 
-      {!loading && !loadError && items.length > 0 && !selecting && (
-        <button onClick={() => setSelecting(true)}>{t("selectSeveral")}</button>
-      )}
-
-      {selecting && (
-        <div>
-          <button
-            onClick={() =>
-              setSelectedIds(
-                items
-                  .filter((f) => f.participation === "continuing")
-                  .map((f) => f.id),
-              )
-            }
-          >
-            {t("selectAllContinuing")}
-          </button>
-          <button onClick={() => setSelectedIds([])}>{t("clear")}</button>
-          <button onClick={stopSelecting}>{t("cancel")}</button>
-          <p>{t("nSelected", { n: selectedIds.length })}</p>
-
-          {selectedIds.length > 0 && (
-            <BulkParticipation
-              farmers={items.filter((f) => selectedIds.includes(f.id))}
-              onDone={bulkDone}
-            />
-          )}
-        </div>
-      )}
-
       {!loading && !loadError && items.length === 0 && (
         <p className="message">{t("noFarmers")}</p>
       )}
@@ -569,47 +521,37 @@ function FarmerList({
       <ul className="farmer-list">
         {items.map((f) => (
           <li className="farmer-row" key={f.id}>
-            {selecting ? (
-              <label className="pick-row">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.includes(f.id)}
-                  onChange={() => togglePicked(f.id)}
-                />
-                <span>
-                  <strong>{f.name}</strong>
-                  <br />
-                  <small>{f.farmer_code}</small> {chip(f)}
+            <div>
+              <button
+                className="farmer-main"
+                disabled={f.season_status === "deleted"}
+                onClick={() => onOpenFarmer(f.id)}
+              >
+                <span className="avatar small" aria-hidden="true">
+                  {initials(f.name)}
                 </span>
-              </label>
-            ) : (
-              <div>
-                <button
-                  className="farmer-main"
-                  onClick={() => onOpenFarmer(f.id)}
+                <span className="farmer-text">
+                  <strong>{f.name}</strong>
+                  <small>{f.farmer_code}</small>
+                </span>
+                {chip(f)}
+              </button>
+              {f.season_status === "deleted" ? (
+                <span className="no-mobile">
+                  {f.deleted_on} · {f.reason}
+                </span>
+              ) : f.mobile ? (
+                <a
+                  className="call"
+                  href={`tel:${f.mobile}`}
+                  aria-label={t("callFarmer", { name: f.name })}
                 >
-                  <span className="avatar small" aria-hidden="true">
-                    {initials(f.name)}
-                  </span>
-                  <span className="farmer-text">
-                    <strong>{f.name}</strong>
-                    <small>{f.farmer_code}</small>
-                  </span>
-                  {chip(f)}
-                </button>
-                {f.mobile ? (
-                  <a
-                    className="call"
-                    href={`tel:${f.mobile}`}
-                    aria-label={t("callFarmer", { name: f.name })}
-                  >
-                    <PhoneIcon /> {f.mobile}
-                  </a>
-                ) : (
-                  <span className="no-mobile">{t("noMobile")}</span>
-                )}
-              </div>
-            )}
+                  <PhoneIcon /> {f.mobile}
+                </a>
+              ) : (
+                <span className="no-mobile">{t("noMobile")}</span>
+              )}
+            </div>
           </li>
         ))}
       </ul>

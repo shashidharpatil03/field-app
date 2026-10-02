@@ -131,6 +131,9 @@ def season_label(start):
     return f"{start.year}-{(start.year + 1) % 100:02d}"
 
 
+LG_RESTORE_TAG = "Learning group brought back"
+
+
 def season_sql(start):
     """SQL pieces describing where each farmer stands in this season.
 
@@ -146,7 +149,23 @@ def season_sql(start):
                  (continued + dropped + to_update)
       this_year  the farmers whose details are up to date for this season
                  (continued + new)
+
+    A farmer whose learning group was dropped and brought back must be
+    confirmed or edited again, so earlier updates (before the bring-back)
+    are ignored. That includes farmers added this season: after a
+    bring-back they count like last year's farmers and show as still to
+    update until someone confirms them.
     """
+    last_restore = (
+        "(SELECT MAX(r.id) FROM farmer_change_log r "
+        "WHERE r.farmer_id = farmers.id AND r.field = 'Participation' "
+        f"AND r.reason = '{LG_RESTORE_TAG}')"
+    )
+    restored = (
+        "EXISTS (SELECT 1 FROM farmer_change_log b "
+        "WHERE b.farmer_id = farmers.id AND b.field = 'Participation' "
+        f"AND b.reason = '{LG_RESTORE_TAG}' AND b.changed_on >= ?)"
+    )
     dropped_since = (
         "EXISTS (SELECT 1 FROM farmer_change_log d "
         "WHERE d.farmer_id = farmers.id AND d.field = 'Participation' "
@@ -155,34 +174,37 @@ def season_sql(start):
     changed_since = (
         "EXISTS (SELECT 1 FROM farmer_change_log e "
         "WHERE e.farmer_id = farmers.id AND e.field != 'Participation' "
-        "AND e.changed_on >= ?)"
+        f"AND e.changed_on >= ? AND e.id > COALESCE({last_restore}, 0))"
     )
-    earlier = "farmers.registered_on < ?"
-    new_sql = "(farmers.registered_on >= ? AND farmers.participation = 'continuing')"
+    earlier = f"(farmers.registered_on < ? OR {restored})"
+    new_sql = (
+        f"(farmers.registered_on >= ? AND NOT {restored} "
+        "AND farmers.participation = 'continuing')"
+    )
     continued_sql = (
         f"({earlier} AND farmers.participation = 'continuing' "
         f"AND {changed_since})"
     )
-    return {
-        "new": (new_sql, [start]),
-        "continued": (continued_sql, [start, start]),
+    pieces = {
+        "new": new_sql,
+        "continued": continued_sql,
         "dropped": (
             f"({earlier} AND farmers.participation = 'dropped_out' "
-            f"AND {dropped_since})",
-            [start, start],
+            f"AND {dropped_since})"
         ),
         "to_update": (
             f"({earlier} AND farmers.participation = 'continuing' "
-            f"AND NOT {changed_since})",
-            [start, start],
+            f"AND NOT {changed_since})"
         ),
         "cohort": (
             f"({earlier} AND (farmers.participation = 'continuing' "
-            f"OR {dropped_since}))",
-            [start, start],
+            f"OR {dropped_since}))"
         ),
-        "this_year": (f"({continued_sql} OR {new_sql})", [start, start, start]),
+        "this_year": f"({continued_sql} OR {new_sql})",
     }
+    # Every placeholder is the season start, so count them instead of
+    # keeping a separate list in step by hand.
+    return {key: (sql, [start] * sql.count("?")) for key, sql in pieces.items()}
 
 
 @app.get("/ping")
@@ -192,21 +214,14 @@ def ping():
 
 
 def deletable_lg_ids(connection):
-    """Groups created this season that hold only farmers who were also
-    registered this season. Only these can be deleted (and their number
-    used again): nothing from an earlier season depends on them."""
+    """Groups created this season. Every farmer in them was registered this
+    season too, so nothing from an earlier season depends on them. Only
+    these can be deleted; older groups can only be dropped."""
     start = season_start(date.today()).isoformat()
     rows = connection.execute(
-        """
-        SELECT id FROM learning_groups
-        WHERE created_on >= ? AND dropped_on IS NULL
-        AND NOT EXISTS (
-            SELECT 1 FROM farmers
-            WHERE farmers.lg_id = learning_groups.id
-            AND (farmers.registered_on IS NULL OR farmers.registered_on < ?)
-        )
-        """,
-        (start, start),
+        "SELECT id FROM learning_groups WHERE created_on >= ? "
+        "AND dropped_on IS NULL",
+        (start,),
     ).fetchall()
     return {row[0] for row in rows}
 
@@ -219,6 +234,7 @@ def list_lgs(user: dict = Depends(current_user)):
     dropped_sql, dropped_values = parts["dropped"]
     new_sql, new_values = parts["new"]
     todo_sql, todo_values = parts["to_update"]
+    this_sql, this_values = parts["this_year"]
     connection = sqlite3.connect("field.db")
     connection.row_factory = sqlite3.Row
     rows = connection.execute(f"""
@@ -253,6 +269,9 @@ def list_lgs(user: dict = Depends(current_user)):
             (SELECT COUNT(*) FROM farmers
              WHERE farmers.lg_id = learning_groups.id
              AND {todo_sql}) AS to_update_count,
+            (SELECT COUNT(*) FROM farmers
+             WHERE farmers.lg_id = learning_groups.id
+             AND {this_sql}) AS season_farmers,
             facilitators.id AS ff_id,
             facilitators.name AS ff_name
         FROM learning_groups
@@ -269,7 +288,7 @@ def list_lgs(user: dict = Depends(current_user)):
         ORDER BY pus.code, learning_groups.lg_number
     """, cohort_values + continued_values + dropped_values
         + continued_values + dropped_values + new_values
-        + todo_values
+        + todo_values + this_values
         + [user["role"], user["pu_id"], user["role"], user["ff_id"]]).fetchall()
     deletable = deletable_lg_ids(connection)
     connection.close()
@@ -437,6 +456,63 @@ def like_pattern(text):
     return f"%{escaped}%"
 
 
+def deleted_farmer_list(lg_id, q, limit, offset, user):
+    """Farmers deleted because they were added by mistake. Read-only: they
+    have no profile. A manager sees the whole PU, a facilitator only the
+    groups still assigned to them."""
+    conditions = []
+    values = []
+    if user["role"] == "pu_manager":
+        conditions.append(
+            "deleted_farmers.farmer_code LIKE "
+            "(SELECT code FROM pus WHERE id = ?) || '-%'"
+        )
+        values.append(user["pu_id"])
+    else:
+        conditions.append(
+            "deleted_farmers.lg_id IN (SELECT lg_id FROM assignments "
+            "WHERE ff_id = ? AND end_date IS NULL)"
+        )
+        values.append(user["ff_id"])
+    if lg_id is not None:
+        conditions.append("deleted_farmers.lg_id = ?")
+        values.append(lg_id)
+    text = q.strip()
+    if text != "":
+        pattern = like_pattern(text)
+        conditions.append(
+            "(deleted_farmers.name LIKE ? ESCAPE '\\' "
+            "OR deleted_farmers.mobile LIKE ? ESCAPE '\\' "
+            "OR deleted_farmers.farmer_code LIKE ? ESCAPE '\\')"
+        )
+        values.extend([pattern, pattern, pattern])
+    where = " AND ".join(conditions)
+    connection = sqlite3.connect("field.db")
+    connection.row_factory = sqlite3.Row
+    total = connection.execute(
+        f"SELECT COUNT(*) FROM deleted_farmers WHERE {where}", values
+    ).fetchone()[0]
+    rows = connection.execute(
+        f"""
+        SELECT -deleted_farmers.id AS id, deleted_farmers.farmer_code,
+               deleted_farmers.name, deleted_farmers.gender,
+               deleted_farmers.growing_cotton,
+               'deleted' AS participation, deleted_farmers.mobile,
+               deleted_farmers.lg_id,
+               substr(deleted_farmers.farmer_code, 1,
+                      length(deleted_farmers.farmer_code) - 3) AS lg_code,
+               '' AS village, 'deleted' AS season_status,
+               deleted_farmers.deleted_on, deleted_farmers.reason
+        FROM deleted_farmers WHERE {where}
+        ORDER BY deleted_farmers.deleted_on DESC, deleted_farmers.farmer_code
+        LIMIT ? OFFSET ?
+        """,
+        values + [limit, offset],
+    ).fetchall()
+    connection.close()
+    return {"total": total, "items": [dict(row) for row in rows]}
+
+
 @app.get("/farmers")
 def search_farmers(
     lg_id: Optional[int] = None,
@@ -455,7 +531,7 @@ def search_farmers(
     """The farmer list. Always limited to what this person may see, then
     narrowed by the filters. Returns one page at a time, so a slow phone
     never has to download hundreds of farmers at once."""
-    if status not in ("continuing", "dropped_out", "all"):
+    if status not in ("continuing", "dropped_out", "all", "deleted"):
         fail(None, 400, "Unknown status")
     if gender is not None and gender not in ALLOWED_GENDERS:
         fail(None, 400, "Unknown gender")
@@ -467,6 +543,9 @@ def search_farmers(
         fail(None, 400, "Unknown season filter")
     limit = max(1, min(limit, 100))
     offset = max(0, offset)
+
+    if status == "deleted" and season is None:
+        return deleted_farmer_list(lg_id, q, limit, offset, user)
 
     conditions = [
         """((? = 'pu_manager' AND learning_groups.pu_id = ?)
@@ -526,6 +605,11 @@ def search_farmers(
             AND assignments.end_date IS NULL
     """
 
+    status_sql = season_sql(season_start(date.today()).isoformat())
+    status_values = []
+    for key in ("new", "continued", "dropped", "to_update"):
+        status_values.extend(status_sql[key][1])
+
     connection = sqlite3.connect("field.db")
     connection.row_factory = sqlite3.Row
     total = connection.execute(
@@ -544,13 +628,20 @@ def search_farmers(
             farmers.lg_id,
             pus.code || '-' || printf('%03d', learning_groups.lg_number)
                 AS lg_code,
-            villages.name AS village
+            villages.name AS village,
+            CASE
+                WHEN {status_sql["new"][0]} THEN 'new'
+                WHEN {status_sql["continued"][0]} THEN 'continued'
+                WHEN {status_sql["dropped"][0]} THEN 'dropped'
+                WHEN {status_sql["to_update"][0]} THEN 'to_update'
+                ELSE 'none'
+            END AS season_status
         {source}
         WHERE {where}
         ORDER BY learning_groups.lg_number, farmers.farmer_number
         LIMIT ? OFFSET ?
         """,
-        values + [limit, offset],
+        status_values + values + [limit, offset],
     ).fetchall()
     connection.close()
     return {"total": total, "items": [dict(row) for row in rows]}
@@ -643,7 +734,16 @@ def registered_this_season(connection, farmer_id):
         "SELECT registered_on FROM farmers WHERE id = ?", (farmer_id,)
     ).fetchone()
     start = season_start(date.today()).isoformat()
-    return row is not None and row[0] is not None and row[0] >= start
+    if row is None or row[0] is None or row[0] < start:
+        return False
+    # After its group is brought back, a farmer added this season is treated
+    # like last year's farmers: confirmed or dropped, no longer deleted.
+    restored = connection.execute(
+        "SELECT 1 FROM farmer_change_log WHERE farmer_id = ? "
+        "AND field = 'Participation' AND reason = ? LIMIT 1",
+        (farmer_id, LG_RESTORE_TAG),
+    ).fetchone()
+    return restored is None
 
 
 def season_status(connection, farmer_id):
@@ -994,6 +1094,9 @@ class FarmerEdit(BaseModel):
     water_regime: str = ""
     confirmed_large: bool = False
     reason: str = ""
+    # "" keeps the current status; "dropped_out" or "continuing" changes it
+    participation: str = ""
+    drop_reason: str = ""
 
 
 @app.put("/farmers/{farmer_id}")
@@ -1012,12 +1115,23 @@ def edit_farmer(
     require_farmer(connection, user, farmer_id, True)
     old = connection.execute(
         "SELECT name, gender, growing_cotton, mobile, total_landholding, "
-        "area_under_cotton, water_regime FROM farmers WHERE id = ?",
+        "area_under_cotton, water_regime, participation FROM farmers "
+        "WHERE id = ?",
         (farmer_id,),
     ).fetchone()
     if old is None:
         connection.close()
         raise HTTPException(status_code=404, detail={"form": "Farmer not found"})
+
+    # Dropping or bringing back a farmer happens here, in Edit details.
+    new_status = body.participation or old[7]
+    if new_status not in PARTICIPATION_LABELS:
+        errors["participation"] = "Unknown participation status"
+    elif new_status != old[7]:
+        if registered_this_season(connection, farmer_id):
+            errors["participation"] = NEW_FARMER_MESSAGE
+        elif new_status == "dropped_out" and body.drop_reason not in DROP_REASONS:
+            errors["participation"] = "Please choose a reason for dropping"
 
     land_errors, new_cotton_area = check_land(
         body.total_landholding, body.area_under_cotton, body.water_regime,
@@ -1055,7 +1169,8 @@ def edit_farmer(
     if old[6] != body.water_regime:
         changes.append(("Water regime", old[6] or "(not recorded)", body.water_regime))
 
-    if not changes:
+    status_changed = new_status != old[7]
+    if not changes and not status_changed:
         connection.close()
         raise HTTPException(status_code=400, detail={"form": "Nothing was changed"})
 
@@ -1090,6 +1205,32 @@ def edit_farmer(
             """,
             (farmer_id, field, old_value, new_value, today, reason),
         )
+    if status_changed:
+        connection.execute(
+            "UPDATE farmers SET participation = ? WHERE id = ?",
+            (new_status, farmer_id),
+        )
+        connection.execute(
+            """
+            INSERT INTO farmer_change_log
+                (farmer_id, field, old_value, new_value, changed_on, reason)
+            VALUES (?, 'Participation', ?, ?, ?, ?)
+            """,
+            (farmer_id, PARTICIPATION_LABELS[old[7]],
+             PARTICIPATION_LABELS[new_status], today,
+             build_reason(new_status, body.drop_reason, reason)),
+        )
+        if new_status == "continuing" and not changes:
+            # Bringing a farmer back with details unchanged still counts as
+            # an update: the facilitator has just checked them.
+            connection.execute(
+                """
+                INSERT INTO farmer_change_log
+                    (farmer_id, field, old_value, new_value, changed_on, reason)
+                VALUES (?, 'Confirmed', '', 'Details confirmed', ?, '')
+                """,
+                (farmer_id, today),
+            )
     connection.commit()
     connection.close()
     return {"message": "Saved"}
@@ -1156,12 +1297,6 @@ DROP_REASONS = [
 ]
 
 
-class ParticipationChange(BaseModel):
-    participation: str = ""
-    reason: str = ""
-    note: str = ""
-
-
 NEW_FARMER_MESSAGE = (
     "Farmers registered this season cannot be marked as dropped out. "
     "If one was added by mistake, delete the farmer instead."
@@ -1170,71 +1305,11 @@ NEW_FARMER_MESSAGE = (
 PARTICIPATION_LABELS = {"continuing": "Continuing", "dropped_out": "Dropped out"}
 
 
-def check_participation(participation, reason, note):
-    errors = {}
-    if participation not in PARTICIPATION_LABELS:
-        errors["form"] = "Unknown participation status"
-    if participation == "dropped_out" and reason not in DROP_REASONS:
-        errors["reason"] = "Please choose a reason"
-    if len(note) > 200:
-        errors["note"] = "Note is too long (at most 200 characters)"
-    return errors
-
-
 def build_reason(participation, reason, note):
     text = reason if participation == "dropped_out" else ""
     if note:
         text = f"{text} - {note}" if text else note
     return text
-
-
-@app.post("/farmers/{farmer_id}/participation")
-def change_participation(
-    farmer_id: int, body: ParticipationChange, user: dict = Depends(current_user)
-):
-    note = " ".join(body.note.split())
-    errors = check_participation(body.participation, body.reason, note)
-    if errors:
-        raise HTTPException(status_code=400, detail=errors)
-
-    connection = sqlite3.connect("field.db")
-    require_farmer(connection, user, farmer_id, True)
-    row = connection.execute(
-        "SELECT participation FROM farmers WHERE id = ?", (farmer_id,)
-    ).fetchone()
-    if row is None:
-        connection.close()
-        raise HTTPException(status_code=404, detail={"form": "Farmer not found"})
-    if registered_this_season(connection, farmer_id):
-        connection.close()
-        raise HTTPException(
-            status_code=400,
-            detail={"form": NEW_FARMER_MESSAGE},
-        )
-    if row[0] == body.participation:
-        connection.close()
-        raise HTTPException(
-            status_code=400, detail={"form": "The farmer already has this status"}
-        )
-
-    reason = build_reason(body.participation, body.reason, note)
-
-    connection.execute(
-        "UPDATE farmers SET participation = ? WHERE id = ?",
-        (body.participation, farmer_id),
-    )
-    connection.execute(
-        """
-        INSERT INTO farmer_change_log
-            (farmer_id, field, old_value, new_value, changed_on, reason)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        (farmer_id, "Participation", PARTICIPATION_LABELS[row[0]],
-         PARTICIPATION_LABELS[body.participation], date.today().isoformat(), reason),
-    )
-    connection.commit()
-    connection.close()
-    return {"message": "Saved"}
 
 
 DELETE_REASONS = [
@@ -1398,16 +1473,15 @@ def add_lg(body: NewLg, user: dict = Depends(current_user)):
             (village_name, user["pu_id"]),
         ).lastrowid
 
-    used = {
-        row[0]
-        for row in connection.execute(
-            "SELECT lg_number FROM learning_groups WHERE pu_id = ?",
-            (user["pu_id"],),
-        ).fetchall()
-    }
-    number = 1
-    while number in used:
-        number += 1
+    # Numbers only go up. A deleted or dropped group keeps its number
+    # reserved, so a group code is never given out twice.
+    highest = connection.execute(
+        "SELECT MAX(pus.last_lg_number, "
+        "COALESCE((SELECT MAX(lg_number) FROM learning_groups "
+        "WHERE pu_id = pus.id), 0)) FROM pus WHERE pus.id = ?",
+        (user["pu_id"],),
+    ).fetchone()[0]
+    number = highest + 1
 
     today = date.today().isoformat()
     lg_id = connection.execute(
@@ -1454,8 +1528,9 @@ def manager_lg(connection, user, lg_id):
 
 @app.post("/lgs/{lg_id}/drop")
 def drop_lg(lg_id: int, body: LgReason, user: dict = Depends(current_user)):
-    """Drops a whole group. Every farmer still in it is marked as dropped
-    out, with the same reason, so the update tracker stays honest."""
+    """Drops a whole group (one that existed before this season). Every
+    farmer still in it, including farmers added this season, is marked as
+    dropped out with the same reason. Bringing the group back reverses it."""
     note = clean_note(body.note)
     errors = {}
     if body.reason not in LG_DROP_REASONS:
@@ -1469,6 +1544,13 @@ def drop_lg(lg_id: int, body: LgReason, user: dict = Depends(current_user)):
     row = manager_lg(connection, user, lg_id)
     if row[1] is not None:
         fail(connection, 400, "This learning group is already dropped", True)
+    if lg_id in deletable_lg_ids(connection):
+        fail(
+            connection, 400,
+            "This group was created this season. Delete it instead of "
+            "dropping it.",
+            True,
+        )
 
     reason = f"{LG_DROP_TAG} - {body.reason}" + (f" - {note}" if note else "")
     today = date.today().isoformat()
@@ -1531,8 +1613,9 @@ def dropped_lgs(user: dict = Depends(current_user)):
 @app.post("/lgs/{lg_id}/restore")
 def restore_lg(lg_id: int, user: dict = Depends(current_user)):
     """Brings a dropped group back, together with the farmers who were
-    dropped when the group was. Farmers who had dropped out earlier stay
-    dropped out."""
+    dropped when the group was. They all go back to 'still to update': the
+    facilitator has to confirm or edit each one again. Farmers who had
+    dropped out earlier stay dropped out."""
     connection = sqlite3.connect("field.db")
     row = manager_lg(connection, user, lg_id)
     if row[1] is None:
@@ -1580,16 +1663,16 @@ def restore_lg(lg_id: int, user: dict = Depends(current_user)):
 
 @app.post("/lgs/{lg_id}/delete")
 def delete_lg(lg_id: int, user: dict = Depends(current_user)):
-    """Deletes a group created this season, so that its number can be used
-    again. Allowed only when every farmer in it was also registered this
-    season; those farmers are copied to the archive first."""
+    """Deletes a group created this season. Its farmers (all added this
+    season) are copied to the archive first. The group number is not
+    given out again."""
     connection = sqlite3.connect("field.db")
     row = manager_lg(connection, user, lg_id)
     if row[1] is not None or lg_id not in deletable_lg_ids(connection):
         fail(
             connection, 400,
-            "Only a group created this season, with only farmers added this "
-            "season, can be deleted. Drop other groups instead.",
+            "Only a group created this season can be deleted. Drop older "
+            "groups instead.",
             True,
         )
 
@@ -1630,81 +1713,6 @@ def delete_lg(lg_id: int, user: dict = Depends(current_user)):
     connection.commit()
     connection.close()
     return {"message": "Deleted", "lg_code": code}
-
-
-class BulkParticipation(BaseModel):
-    farmer_ids: List[int] = []
-    participation: str = ""
-    reason: str = ""
-    note: str = ""
-
-
-@app.post("/farmers/bulk-participation")
-def bulk_participation(
-    body: BulkParticipation, user: dict = Depends(current_user)
-):
-    note = " ".join(body.note.split())
-    errors = check_participation(body.participation, body.reason, note)
-
-    ids = list(set(body.farmer_ids))
-    if len(ids) == 0:
-        errors["form"] = "Select at least one farmer"
-    elif len(ids) > 500:
-        errors["form"] = "Too many farmers at once (at most 500)"
-    if errors:
-        raise HTTPException(status_code=400, detail=errors)
-
-    connection = sqlite3.connect("field.db")
-    marks = ",".join("?" * len(ids))
-    rows = connection.execute(
-        f"SELECT id, participation FROM farmers WHERE id IN ({marks})", ids
-    ).fetchall()
-    if len(rows) != len(ids):
-        connection.close()
-        raise HTTPException(
-            status_code=404, detail={"form": "Some of these farmers were not found"}
-        )
-    for farmer_id in ids:
-        require_farmer(connection, user, farmer_id, True)
-
-    new_ids = [
-        farmer_id for farmer_id in ids
-        if registered_this_season(connection, farmer_id)
-    ]
-    if new_ids:
-        connection.close()
-        raise HTTPException(
-            status_code=400,
-            detail={"form": NEW_FARMER_MESSAGE},
-        )
-
-    to_change = [row for row in rows if row[1] != body.participation]
-    if len(to_change) == 0:
-        connection.close()
-        raise HTTPException(
-            status_code=400,
-            detail={"form": "All selected farmers already have this status"},
-        )
-
-    reason = build_reason(body.participation, body.reason, note)
-    today = date.today().isoformat()
-    for farmer_id, old_status in to_change:
-        connection.execute(
-            "UPDATE farmers SET participation = ? WHERE id = ?",
-            (body.participation, farmer_id),
-        )
-        connection.execute(
-            """
-            INSERT INTO farmer_change_log
-                (farmer_id, field, old_value, new_value, changed_on, reason)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (farmer_id, "Participation", PARTICIPATION_LABELS[old_status],
-             PARTICIPATION_LABELS[body.participation], today, reason),
-        )
-    connection.commit()
-    connection.close()
-    return {"changed": len(to_change), "skipped": len(rows) - len(to_change)}
 
 
 class BulkReassign(BaseModel):

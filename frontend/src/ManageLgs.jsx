@@ -279,18 +279,19 @@ function ManageLgs({ lgs, ffs, onChanged }) {
             {t("farmersCount", { n: lg.farmer_count })} ·{" "}
             {lg.ff_name ?? t("nobodyYet")}
           </p>
-          <button
-            className="danger"
-            onClick={() => setAction({ kind: "drop", lg: lg })}
-          >
-            {t("lgDrop")}
-          </button>
-          {lg.can_delete && (
+          {lg.can_delete ? (
             <button
               className="danger"
               onClick={() => setAction({ kind: "delete", lg: lg })}
             >
               {t("lgDelete")}
+            </button>
+          ) : (
+            <button
+              className="danger"
+              onClick={() => setAction({ kind: "drop", lg: lg })}
+            >
+              {t("lgDrop")}
             </button>
           )}
         </div>

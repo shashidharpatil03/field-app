@@ -57,7 +57,14 @@ function LearningGroups({ lgs, isManager, savedCopyFrom, nav, onOpen }) {
                 <span className="group-text">
                   <span className="group-top">
                     <span className="group-code">{lg.lg_code}</span>
-                    <span className="group-village">{lg.village}</span>
+                    <span className="group-side">
+                      <span className="group-village">{lg.village}</span>
+                      {typeof lg.season_farmers === "number" && (
+                        <small>
+                          {t("lgThisSeason", { n: lg.season_farmers })}
+                        </small>
+                      )}
+                    </span>
                   </span>
                   {isManager && (
                     <small>
