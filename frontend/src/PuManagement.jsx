@@ -4,6 +4,7 @@ import { useT } from "./i18n.jsx";
 import AddFacilitator from "./AddFacilitator.jsx";
 import LeaveFlow from "./LeaveFlow.jsx";
 import BulkMove from "./BulkMove.jsx";
+import ManageLgs from "./ManageLgs.jsx";
 
 function PuManagement({ onHome }) {
   const t = useT();
@@ -49,6 +50,8 @@ function PuManagement({ onHome }) {
   let body;
   if (view === "move") {
     body = <BulkMove />;
+  } else if (view === "groups") {
+    body = <ManageLgs lgs={lgs} ffs={ffs} onChanged={finished} />;
   } else if (adding) {
     body = (
       <AddFacilitator
@@ -124,6 +127,16 @@ function PuManagement({ onHome }) {
           }}
         >
           {t("tabFfs")}
+        </button>
+        <button
+          className={view === "groups" ? "tab active" : "tab"}
+          onClick={() => {
+            setView("groups");
+            setMessage("");
+            load();
+          }}
+        >
+          {t("tabLgGroups")}
         </button>
         <button
           className={view === "move" ? "tab active" : "tab"}

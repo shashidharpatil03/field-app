@@ -123,11 +123,19 @@ function FarmerSummary({ data, onOpen }) {
       />
       <ChartCard title={t("chartWater")} parts={some(water)} onOpen={onOpen} />
 
-      <div className="card">
-        <div className="stat-number">
-          <Num value={year.area_under_cotton} decimals={1} />
+      <div className="stats">
+        <div className="stat">
+          <div className="stat-number">
+            <Num value={year.total_landholding} decimals={1} />
+          </div>
+          <div className="stat-label">{t("statLand")}</div>
         </div>
-        <div className="stat-label">{t("statArea")}</div>
+        <div className="stat">
+          <div className="stat-number">
+            <Num value={year.area_under_cotton} decimals={1} />
+          </div>
+          <div className="stat-label">{t("statArea")}</div>
+        </div>
       </div>
     </div>
   );

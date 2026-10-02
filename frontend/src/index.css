@@ -1500,3 +1500,20 @@ button.danger.solid {
   font-size: 16px;
   color: var(--heading);
 }
+
+/* ---- learning group row: code on the left, village on the right ---- */
+
+.group-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.group-village {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  color: var(--heading);
+  text-align: right;
+}

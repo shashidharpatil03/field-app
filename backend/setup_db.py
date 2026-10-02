@@ -64,6 +64,9 @@ cursor.execute("""
         village_id INTEGER NOT NULL REFERENCES villages(id),
         lg_number INTEGER NOT NULL,
         last_farmer_number INTEGER NOT NULL DEFAULT 0,
+        created_on TEXT,
+        dropped_on TEXT,
+        drop_reason TEXT,
         UNIQUE (pu_id, lg_number)
     )
 """)

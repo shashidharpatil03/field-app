@@ -1,3 +1,4 @@
+import { useState } from "react";
 import FarmerNav from "./FarmerNav.jsx";
 import StackedBar from "./StackedBar.jsx";
 import { barParts } from "./ProgressTracker.jsx";
@@ -9,6 +10,14 @@ import { formatWhen } from "./offline.js";
 // Tapping a row opens the farmer list for that group.
 function LearningGroups({ lgs, isManager, savedCopyFrom, nav, onOpen }) {
   const t = useT();
+  const [query, setQuery] = useState("");
+  const words = query.trim().toLowerCase();
+  const shown = lgs.filter(
+    (lg) =>
+      words === "" ||
+      lg.lg_code.toLowerCase().includes(words) ||
+      lg.village.toLowerCase().includes(words),
+  );
 
   return (
     <div className="page">
@@ -22,8 +31,21 @@ function LearningGroups({ lgs, isManager, savedCopyFrom, nav, onOpen }) {
         </p>
       )}
 
+      <div className="field">
+        <label htmlFor="lg-search">{t("lgSearchLabel")}</label>
+        <input
+          id="lg-search"
+          type="text"
+          value={query}
+          placeholder={t("lgSearchPlaceholder")}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+
+      {shown.length === 0 && <p>{t("lgNoMatch")}</p>}
+
       <ul className="group-list">
-        {lgs.map((lg) => {
+        {shown.map((lg) => {
           // A copy saved on the phone before this feature existed has no
           // season numbers, so show nothing extra for it.
           const hasSeason =
@@ -33,8 +55,10 @@ function LearningGroups({ lgs, isManager, savedCopyFrom, nav, onOpen }) {
             <li key={lg.id}>
               <button className="group-row" onClick={() => onOpen(lg)}>
                 <span className="group-text">
-                  <span className="group-code">{lg.lg_code}</span>
-                  <small>{lg.village}</small>
+                  <span className="group-top">
+                    <span className="group-code">{lg.lg_code}</span>
+                    <span className="group-village">{lg.village}</span>
+                  </span>
                   {isManager && (
                     <small>
                       {t("facilitator")} {lg.ff_name ?? t("nobodyYet")}

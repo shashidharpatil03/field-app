@@ -102,6 +102,14 @@ def require_farmer(connection, user, farmer_id, form=False):
         fail(connection, 403, "You do not have access to this farmer", form)
 
 
+def require_active_lg(connection, lg_id, form=False):
+    row = connection.execute(
+        "SELECT dropped_on FROM learning_groups WHERE id = ?", (lg_id,)
+    ).fetchone()
+    if row is not None and row[0] is not None:
+        fail(connection, 400, "This learning group has been dropped", form)
+
+
 def require_draft(connection, user, draft_id):
     row = connection.execute(
         "SELECT lg_id FROM farmer_drafts WHERE id = ?", (draft_id,)
@@ -183,6 +191,26 @@ def ping():
     return {"ok": True}
 
 
+def deletable_lg_ids(connection):
+    """Groups created this season that hold only farmers who were also
+    registered this season. Only these can be deleted (and their number
+    used again): nothing from an earlier season depends on them."""
+    start = season_start(date.today()).isoformat()
+    rows = connection.execute(
+        """
+        SELECT id FROM learning_groups
+        WHERE created_on >= ? AND dropped_on IS NULL
+        AND NOT EXISTS (
+            SELECT 1 FROM farmers
+            WHERE farmers.lg_id = learning_groups.id
+            AND (farmers.registered_on IS NULL OR farmers.registered_on < ?)
+        )
+        """,
+        (start, start),
+    ).fetchall()
+    return {row[0] for row in rows}
+
+
 @app.get("/lgs")
 def list_lgs(user: dict = Depends(current_user)):
     parts = season_sql(season_start(date.today()).isoformat())
@@ -235,15 +263,22 @@ def list_lgs(user: dict = Depends(current_user)):
             AND assignments.end_date IS NULL
         LEFT JOIN facilitators
             ON facilitators.id = assignments.ff_id
-        WHERE (? = 'pu_manager' AND learning_groups.pu_id = ?)
-           OR (? = 'facilitator' AND assignments.ff_id = ?)
+        WHERE ((? = 'pu_manager' AND learning_groups.pu_id = ?)
+           OR (? = 'facilitator' AND assignments.ff_id = ?))
+        AND learning_groups.dropped_on IS NULL
         ORDER BY pus.code, learning_groups.lg_number
     """, cohort_values + continued_values + dropped_values
         + continued_values + dropped_values + new_values
         + todo_values
         + [user["role"], user["pu_id"], user["role"], user["ff_id"]]).fetchall()
+    deletable = deletable_lg_ids(connection)
     connection.close()
-    return [dict(row) for row in rows]
+    result = []
+    for row in rows:
+        lg = dict(row)
+        lg["can_delete"] = lg["id"] in deletable
+        result.append(lg)
+    return result
 
 @app.get("/users")
 def list_users():
@@ -304,6 +339,7 @@ def reassign_lg(
 
     if lg[1] != user["pu_id"]:
         fail(connection, 403, "You do not have access to this group")
+    require_active_lg(connection, lg_id)
     if not ff[2]:
         fail(connection, 400, "That facilitator has left")
     if lg[1] != ff[1]:
@@ -551,7 +587,7 @@ def farmers_dashboard(user: dict = Depends(current_user)):
     # The figures about this season's farmers (continued + new). Farmers
     # who still have last season's details are not counted in them yet.
     sql, values = parts["this_year"]
-    total, growing, women, men, area, rainfed, partial, full, unknown = (
+    total, growing, women, men, area, land, rainfed, partial, full, unknown = (
         connection.execute(
         """
         SELECT COUNT(*),
@@ -559,6 +595,7 @@ def farmers_dashboard(user: dict = Depends(current_user)):
                COALESCE(SUM(farmers.gender = 'Female'), 0),
                COALESCE(SUM(farmers.gender = 'Male'), 0),
                COALESCE(SUM(farmers.area_under_cotton), 0),
+               COALESCE(SUM(farmers.total_landholding), 0),
                COALESCE(SUM(farmers.water_regime = 'Rainfed'), 0),
                COALESCE(SUM(farmers.water_regime = 'Partially irrigated'), 0),
                COALESCE(SUM(farmers.water_regime = 'Fully irrigated'), 0),
@@ -588,6 +625,7 @@ def farmers_dashboard(user: dict = Depends(current_user)):
                 "none": unknown,
             },
             "area_under_cotton": round(area, 1),
+            "total_landholding": round(land, 1),
         },
         "last_year": {
             "total": count("cohort"),
@@ -791,6 +829,7 @@ def create_draft(lg_id: int, body: DraftBody, user: dict = Depends(current_user)
 
     connection = sqlite3.connect("field.db")
     require_lg(connection, user, lg_id, True)
+    require_active_lg(connection, lg_id, True)
 
     growing = None if body.growing_cotton is None else int(body.growing_cotton)
     cursor = connection.execute(
@@ -878,6 +917,7 @@ def submit_draft(draft_id: int, user: dict = Depends(current_user)):
 
     (lg_id, name, gender, growing, mobile,
      total, cotton, water, confirmed) = draft
+    require_active_lg(connection, lg_id, True)
     growing_cotton = None if growing is None else bool(growing)
 
     errors = check_farmer(name, gender, growing_cotton, mobile)
@@ -1269,6 +1309,327 @@ def delete_farmer(
     connection.commit()
     connection.close()
     return {"message": "Deleted", "farmer_code": row[0]}
+
+
+
+# ---------------------------------------------------------------------------
+# Learning groups: add, drop, bring back, delete. Only the PU manager.
+# ---------------------------------------------------------------------------
+
+LG_DROP_REASONS = [
+    "Group dissolved",
+    "Village no longer in the programme",
+    "Merged with another group",
+    "Other",
+]
+LG_DROP_TAG = "Learning group dropped"
+
+
+def clean_note(note):
+    return " ".join(note.split())
+
+
+@app.get("/pu/villages")
+def pu_villages(user: dict = Depends(current_user)):
+    require_manager(user)
+    connection = sqlite3.connect("field.db")
+    rows = connection.execute(
+        "SELECT id, name FROM villages WHERE pu_id = ? ORDER BY name",
+        (user["pu_id"],),
+    ).fetchall()
+    connection.close()
+    return [{"id": row[0], "name": row[1]} for row in rows]
+
+
+class NewLg(BaseModel):
+    village_id: Optional[int] = None
+    new_village: str = ""
+    ff_id: Optional[int] = None
+
+
+@app.post("/pu/lgs")
+def add_lg(body: NewLg, user: dict = Depends(current_user)):
+    """Creates a learning group in the manager's PU. It takes the lowest
+    number not in use, so the number of a deleted new group is used again."""
+    require_manager(user)
+    village_name = clean_note(body.new_village)
+    errors = {}
+    if body.village_id is None and village_name == "":
+        errors["village"] = "Choose a village or type a new one"
+    if village_name != "":
+        message = name_error(village_name, "village")
+        if message:
+            errors["village"] = message.replace("full name", "name")
+
+    connection = sqlite3.connect("field.db")
+    village_id = body.village_id
+    if village_name != "" and "village" not in errors:
+        existing = connection.execute(
+            "SELECT id FROM villages WHERE pu_id = ? AND lower(name) = lower(?)",
+            (user["pu_id"], village_name),
+        ).fetchone()
+        village_id = existing[0] if existing else None
+    elif village_id is not None:
+        row = connection.execute(
+            "SELECT id FROM villages WHERE id = ? AND pu_id = ?",
+            (village_id, user["pu_id"]),
+        ).fetchone()
+        if row is None:
+            errors["village"] = "Village not found in your PU"
+
+    ff = None
+    if body.ff_id is not None:
+        ff = connection.execute(
+            "SELECT id, pu_id, active FROM facilitators WHERE id = ?",
+            (body.ff_id,),
+        ).fetchone()
+        if ff is None or ff[1] != user["pu_id"]:
+            errors["ff"] = "Facilitator not found in your PU"
+        elif not ff[2]:
+            errors["ff"] = "That facilitator has left"
+
+    if errors:
+        connection.close()
+        raise HTTPException(status_code=400, detail=errors)
+
+    if village_id is None:
+        village_id = connection.execute(
+            "INSERT INTO villages (name, pu_id) VALUES (?, ?)",
+            (village_name, user["pu_id"]),
+        ).lastrowid
+
+    used = {
+        row[0]
+        for row in connection.execute(
+            "SELECT lg_number FROM learning_groups WHERE pu_id = ?",
+            (user["pu_id"],),
+        ).fetchall()
+    }
+    number = 1
+    while number in used:
+        number += 1
+
+    today = date.today().isoformat()
+    lg_id = connection.execute(
+        "INSERT INTO learning_groups (pu_id, village_id, lg_number, created_on) "
+        "VALUES (?, ?, ?, ?)",
+        (user["pu_id"], village_id, number, today),
+    ).lastrowid
+    connection.execute(
+        "UPDATE pus SET last_lg_number = MAX(last_lg_number, ?) WHERE id = ?",
+        (number, user["pu_id"]),
+    )
+    if ff is not None:
+        connection.execute(
+            "INSERT INTO assignments (lg_id, ff_id, start_date) VALUES (?, ?, ?)",
+            (lg_id, ff[0], today),
+        )
+    code = connection.execute(
+        "SELECT pus.code || '-' || printf('%03d', ?) FROM pus WHERE id = ?",
+        (number, user["pu_id"]),
+    ).fetchone()[0]
+    connection.commit()
+    connection.close()
+    return {"id": lg_id, "lg_code": code}
+
+
+class LgReason(BaseModel):
+    reason: str = ""
+    note: str = ""
+
+
+def manager_lg(connection, user, lg_id):
+    """The group's row, after checking it exists and is in the manager's PU."""
+    require_manager(user)
+    row = connection.execute(
+        "SELECT pu_id, dropped_on, created_on FROM learning_groups WHERE id = ?",
+        (lg_id,),
+    ).fetchone()
+    if row is None:
+        fail(connection, 404, "Group not found", True)
+    if row[0] != user["pu_id"]:
+        fail(connection, 403, "You do not have access to this group", True)
+    return row
+
+
+@app.post("/lgs/{lg_id}/drop")
+def drop_lg(lg_id: int, body: LgReason, user: dict = Depends(current_user)):
+    """Drops a whole group. Every farmer still in it is marked as dropped
+    out, with the same reason, so the update tracker stays honest."""
+    note = clean_note(body.note)
+    errors = {}
+    if body.reason not in LG_DROP_REASONS:
+        errors["reason"] = "Please choose a reason"
+    if len(note) > 200:
+        errors["note"] = "Note is too long (at most 200 characters)"
+    if errors:
+        raise HTTPException(status_code=400, detail=errors)
+
+    connection = sqlite3.connect("field.db")
+    row = manager_lg(connection, user, lg_id)
+    if row[1] is not None:
+        fail(connection, 400, "This learning group is already dropped", True)
+
+    reason = f"{LG_DROP_TAG} - {body.reason}" + (f" - {note}" if note else "")
+    today = date.today().isoformat()
+    farmers = connection.execute(
+        "SELECT id FROM farmers WHERE lg_id = ? AND participation = 'continuing'",
+        (lg_id,),
+    ).fetchall()
+    for (farmer_id,) in farmers:
+        connection.execute(
+            "UPDATE farmers SET participation = 'dropped_out' WHERE id = ?",
+            (farmer_id,),
+        )
+        connection.execute(
+            """
+            INSERT INTO farmer_change_log
+                (farmer_id, field, old_value, new_value, changed_on, reason)
+            VALUES (?, 'Participation', 'Continuing', 'Dropped out', ?, ?)
+            """,
+            (farmer_id, today, reason),
+        )
+    connection.execute(
+        "UPDATE learning_groups SET dropped_on = ?, drop_reason = ? WHERE id = ?",
+        (today, f"{body.reason}" + (f" - {note}" if note else ""), lg_id),
+    )
+    connection.commit()
+    connection.close()
+    return {"message": "Dropped", "farmers_dropped": len(farmers)}
+
+
+@app.get("/pu/lgs/dropped")
+def dropped_lgs(user: dict = Depends(current_user)):
+    require_manager(user)
+    connection = sqlite3.connect("field.db")
+    rows = connection.execute(
+        """
+        SELECT learning_groups.id,
+               pus.code || '-' || printf('%03d', learning_groups.lg_number),
+               villages.name, learning_groups.dropped_on,
+               learning_groups.drop_reason,
+               (SELECT COUNT(*) FROM farmers
+                WHERE farmers.lg_id = learning_groups.id)
+        FROM learning_groups
+        JOIN pus ON pus.id = learning_groups.pu_id
+        JOIN villages ON villages.id = learning_groups.village_id
+        WHERE learning_groups.pu_id = ? AND learning_groups.dropped_on IS NOT NULL
+        ORDER BY learning_groups.dropped_on DESC, learning_groups.lg_number
+        """,
+        (user["pu_id"],),
+    ).fetchall()
+    connection.close()
+    return [
+        {
+            "id": r[0], "lg_code": r[1], "village": r[2], "dropped_on": r[3],
+            "drop_reason": r[4], "farmer_count": r[5],
+        }
+        for r in rows
+    ]
+
+
+@app.post("/lgs/{lg_id}/restore")
+def restore_lg(lg_id: int, user: dict = Depends(current_user)):
+    """Brings a dropped group back, together with the farmers who were
+    dropped when the group was. Farmers who had dropped out earlier stay
+    dropped out."""
+    connection = sqlite3.connect("field.db")
+    row = manager_lg(connection, user, lg_id)
+    if row[1] is None:
+        fail(connection, 400, "This learning group is not dropped", True)
+
+    today = date.today().isoformat()
+    farmers = connection.execute(
+        """
+        SELECT farmers.id FROM farmers
+        WHERE farmers.lg_id = ? AND farmers.participation = 'dropped_out'
+        AND EXISTS (
+            SELECT 1 FROM farmer_change_log
+            WHERE farmer_change_log.farmer_id = farmers.id
+            AND farmer_change_log.field = 'Participation'
+            AND farmer_change_log.new_value = 'Dropped out'
+            AND farmer_change_log.changed_on = ?
+            AND farmer_change_log.reason LIKE ?
+        )
+        """,
+        (lg_id, row[1], f"{LG_DROP_TAG}%"),
+    ).fetchall()
+    for (farmer_id,) in farmers:
+        connection.execute(
+            "UPDATE farmers SET participation = 'continuing' WHERE id = ?",
+            (farmer_id,),
+        )
+        connection.execute(
+            """
+            INSERT INTO farmer_change_log
+                (farmer_id, field, old_value, new_value, changed_on, reason)
+            VALUES (?, 'Participation', 'Dropped out', 'Continuing', ?,
+                    'Learning group brought back')
+            """,
+            (farmer_id, today),
+        )
+    connection.execute(
+        "UPDATE learning_groups SET dropped_on = NULL, drop_reason = NULL "
+        "WHERE id = ?",
+        (lg_id,),
+    )
+    connection.commit()
+    connection.close()
+    return {"message": "Brought back", "farmers_restored": len(farmers)}
+
+
+@app.post("/lgs/{lg_id}/delete")
+def delete_lg(lg_id: int, user: dict = Depends(current_user)):
+    """Deletes a group created this season, so that its number can be used
+    again. Allowed only when every farmer in it was also registered this
+    season; those farmers are copied to the archive first."""
+    connection = sqlite3.connect("field.db")
+    row = manager_lg(connection, user, lg_id)
+    if row[1] is not None or lg_id not in deletable_lg_ids(connection):
+        fail(
+            connection, 400,
+            "Only a group created this season, with only farmers added this "
+            "season, can be deleted. Drop other groups instead.",
+            True,
+        )
+
+    code = connection.execute(
+        "SELECT pus.code || '-' || printf('%03d', learning_groups.lg_number) "
+        "FROM learning_groups JOIN pus ON pus.id = learning_groups.pu_id "
+        "WHERE learning_groups.id = ?",
+        (lg_id,),
+    ).fetchone()[0]
+    connection.execute(
+        f"""
+        INSERT INTO deleted_farmers
+            (farmer_id, farmer_code, lg_id, farmer_number, name, gender,
+             growing_cotton, mobile, total_landholding, area_under_cotton,
+             water_regime, registered_on, deleted_on, deleted_by, reason)
+        SELECT farmers.id, {FARMER_CODE_SQL}, farmers.lg_id,
+               farmers.farmer_number, farmers.name, farmers.gender,
+               farmers.growing_cotton, farmers.mobile,
+               farmers.total_landholding, farmers.area_under_cotton,
+               farmers.water_regime, farmers.registered_on, ?, ?,
+               'Learning group deleted'
+        FROM farmers
+        JOIN learning_groups ON learning_groups.id = farmers.lg_id
+        JOIN pus ON pus.id = learning_groups.pu_id
+        WHERE farmers.lg_id = ?
+        """,
+        (date.today().isoformat(), user["name"], lg_id),
+    )
+    connection.execute(
+        "DELETE FROM farmer_change_log WHERE farmer_id IN "
+        "(SELECT id FROM farmers WHERE lg_id = ?)",
+        (lg_id,),
+    )
+    connection.execute("DELETE FROM farmers WHERE lg_id = ?", (lg_id,))
+    connection.execute("DELETE FROM farmer_drafts WHERE lg_id = ?", (lg_id,))
+    connection.execute("DELETE FROM assignments WHERE lg_id = ?", (lg_id,))
+    connection.execute("DELETE FROM learning_groups WHERE id = ?", (lg_id,))
+    connection.commit()
+    connection.close()
+    return {"message": "Deleted", "lg_code": code}
 
 
 class BulkParticipation(BaseModel):
