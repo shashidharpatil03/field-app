@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import FarmerProfile from "./FarmerProfile.jsx";
 import RegisterFarmer from "./RegisterFarmer.jsx";
 import LearningGroups from "./LearningGroups.jsx";
+import Dashboard from "./Dashboard.jsx";
 import FarmerList from "./FarmerList.jsx";
 import { apiFetch } from "./api.js";
 import { saveLgCache, readLgCache } from "./offline.js";
@@ -12,19 +13,21 @@ const NO_FILTERS = {
   ffId: "",
   q: "",
   status: "continuing",
+  gender: "",
+  growing: "",
+  season: "",
 };
 
-// Farmer Data has two screens: the list of learning groups, and the list of
-// farmers (with filters). This component decides which one to show, and
-// keeps what both of them need.
+// Farmer Data has three screens: the dashboard, the list of learning groups,
+// and the list of farmers (with filters). This component decides which one
+// to show, and keeps what they need.
 function FarmerData({ onHome, user }) {
   const isManager = user.role === "pu_manager";
   const [lgs, setLgs] = useState([]);
   const [savedCopyFrom, setSavedCopyFrom] = useState(null);
-  const [screen, setScreen] = useState("groups");
+  const [screen, setScreen] = useState("dashboard");
   const [filters, setFilters] = useState(NO_FILTERS);
   const [message, setMessage] = useState("");
-  const [scrollSignal, setScrollSignal] = useState(0);
   const [profileId, setProfileId] = useState(null);
   const [registerLg, setRegisterLg] = useState(null);
   const [registerDraft, setRegisterDraft] = useState(null);
@@ -63,21 +66,31 @@ function FarmerData({ onHome, user }) {
     setScreen("farmers");
   }
 
-  function openAll() {
+  // Opens the farmer list with some filters already set, for example
+  // { gender: "Female" } when the women card is tapped.
+  function openFarmers(extra = {}) {
     setMessage("");
-    setFilters(NO_FILTERS);
+    setFilters({ ...NO_FILTERS, ...extra });
     setScreen("farmers");
   }
 
-  // The "LGs" button: show the group list and scroll down to it.
   function showGroups() {
     setMessage("");
     setScreen("groups");
-    setScrollSignal(scrollSignal + 1);
     loadLgs();
   }
 
-  const nav = { onHome: onHome, onLgs: showGroups, onAll: openAll };
+  function showDashboard() {
+    setMessage("");
+    setScreen("dashboard");
+  }
+
+  const nav = {
+    onHome: onHome,
+    onDashboard: showDashboard,
+    onLgs: showGroups,
+    onAll: () => openFarmers(),
+  };
 
   function startRegister(lg, draft) {
     setMessage("");
@@ -97,6 +110,12 @@ function FarmerData({ onHome, user }) {
           farmerId={profileId}
           onBack={() => {
             setProfileId(null);
+            loadLgs();
+          }}
+          onDeleted={(text) => {
+            setProfileId(null);
+            setMessage(text);
+            setScreen("farmers");
             loadLgs();
           }}
         />
@@ -140,17 +159,20 @@ function FarmerData({ onHome, user }) {
     );
   }
 
-  return (
-    <LearningGroups
-      key="groups"
-      lgs={lgs}
-      isManager={isManager}
-      savedCopyFrom={savedCopyFrom}
-      nav={nav}
-      scrollSignal={scrollSignal}
-      onOpen={openGroup}
-    />
-  );
+  if (screen === "groups") {
+    return (
+      <LearningGroups
+        key="groups"
+        lgs={lgs}
+        isManager={isManager}
+        savedCopyFrom={savedCopyFrom}
+        nav={nav}
+        onOpen={openGroup}
+      />
+    );
+  }
+
+  return <Dashboard key="dashboard" nav={nav} onOpen={openFarmers} />;
 }
 
 export default FarmerData;

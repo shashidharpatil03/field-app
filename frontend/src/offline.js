@@ -36,10 +36,14 @@ function announce() {
 }
 
 // Times are stored in UTC; show them in the phone's own time zone.
+// Today's times show just the clock time; older ones also show the date.
 export function formatWhen(iso) {
   const date = new Date(iso);
   if (isNaN(date)) {
     return "";
+  }
+  if (date.toDateString() === new Date().toDateString()) {
+    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   }
   return date.toLocaleString([], {
     day: "numeric",
@@ -79,8 +83,8 @@ export function removePending(key) {
 function updatePending(key, changes) {
   setPending(
     getPending().map((item) =>
-      item.key === key ? { ...item, ...changes } : item
-    )
+      item.key === key ? { ...item, ...changes } : item,
+    ),
   );
 }
 
@@ -97,6 +101,26 @@ export function readLgCache() {
 
 export function getLastSync() {
   return read(`lastsync_${getApiUser()}`, null);
+}
+
+// ---- When data last reached the server --------------------------------
+// apiFetch announces every successful save ("data-sent"); we keep the time.
+window.addEventListener("data-sent", () => {
+  if (getApiUser() !== null) {
+    write(`lastsync_${getApiUser()}`, new Date().toISOString());
+    announce();
+  }
+});
+
+// ---- A saved copy of the dashboard numbers ----------------------------
+// So the dashboard still shows something when there is no signal.
+
+export function saveDashCache(data) {
+  write(`dash_${getApiUser()}`, { savedAt: new Date().toISOString(), data });
+}
+
+export function readDashCache() {
+  return read(`dash_${getApiUser()}`, null);
 }
 
 // ---- Sending one waiting item ----------------------------------------
@@ -133,7 +157,7 @@ export async function sendItem(item) {
       method: draftId === null ? "POST" : "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(item.data),
-    }
+    },
   );
   const data = await parse(response);
 
@@ -203,9 +227,6 @@ export async function syncAll() {
     }
   }
 
-  if (!offline) {
-    write(`lastsync_${getApiUser()}`, new Date().toISOString());
-  }
   announce();
   return { results, offline };
 }

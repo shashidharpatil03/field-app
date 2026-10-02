@@ -3,14 +3,23 @@ import sqlite3
 
 from datetime import date
 
-from demo_data import add_demo_history, demo_land, demo_registered_on
+from demo_data import (
+    add_demo_confirmations,
+    add_demo_history,
+    demo_land,
+    demo_registered_on,
+    season_start,
+)
 from users_seed import create_users_table, seed_users
+
+from deleted_table import DELETED_FARMERS_SQL
 
 random.seed(42)
 
 connection = sqlite3.connect("field.db")
 cursor = connection.cursor()
 
+cursor.execute("DROP TABLE IF EXISTS deleted_farmers")
 cursor.execute("DROP TABLE IF EXISTS app_users")
 cursor.execute("DROP TABLE IF EXISTS farmer_change_log")
 cursor.execute("DROP TABLE IF EXISTS farmer_drafts")
@@ -128,6 +137,8 @@ cursor.execute("""
     )
 """)
 
+cursor.execute(DELETED_FARMERS_SQL)
+
 cursor.execute("CREATE UNIQUE INDEX farmers_mobile_unique ON farmers(mobile)")
 
 pus = [
@@ -177,6 +188,10 @@ for lg_id in range(1, len(groups) + 1):
         participation = "dropped_out" if number % 8 == 0 else "continuing"
         total, cotton, water = demo_land(random, growing_cotton == 1)
         registered_on = demo_registered_on(random, date.today())
+        if participation == "dropped_out":
+            # Farmers registered this season cannot be dropped, only deleted.
+            while registered_on >= season_start(date.today()).isoformat():
+                registered_on = demo_registered_on(random, date.today())
         farmers.append(
             (lg_id, number, name, gender, growing_cotton, participation,
              total, cotton, water, registered_on)
@@ -220,6 +235,7 @@ cursor.execute("""
 """)
 
 add_demo_history(connection, random, date.today())
+add_demo_confirmations(connection, random, date.today())
 
 create_users_table(connection)
 seed_users(connection)

@@ -110,11 +110,88 @@ def require_draft(connection, user, draft_id):
     return row[0]
 
 
+def season_start(today):
+    """The cotton season starts on 1 May every year."""
+    this_year = date(today.year, 5, 1)
+    return this_year if today >= this_year else date(today.year - 1, 5, 1)
+
+
+def season_label(start):
+    """'2026-27' for the season that starts on 1 May 2026."""
+    return f"{start.year}-{(start.year + 1) % 100:02d}"
+
+
+def season_sql(start):
+    """SQL pieces describing where each farmer stands in this season.
+
+    Each entry is (sql, values) and is written to be used inside a query
+    that has the `farmers` table:
+      new        registered since the season began (still participating)
+      continued  registered earlier, still participating, and confirmed or
+                 edited since the season began
+      dropped    registered earlier and dropped out since the season began
+      to_update  registered earlier, still participating, not yet updated
+      cohort     all farmers registered earlier who were still in the
+                 programme when the season began
+                 (continued + dropped + to_update)
+      this_year  the farmers whose details are up to date for this season
+                 (continued + new)
+    """
+    dropped_since = (
+        "EXISTS (SELECT 1 FROM farmer_change_log d "
+        "WHERE d.farmer_id = farmers.id AND d.field = 'Participation' "
+        "AND d.new_value = 'Dropped out' AND d.changed_on >= ?)"
+    )
+    changed_since = (
+        "EXISTS (SELECT 1 FROM farmer_change_log e "
+        "WHERE e.farmer_id = farmers.id AND e.field != 'Participation' "
+        "AND e.changed_on >= ?)"
+    )
+    earlier = "farmers.registered_on < ?"
+    new_sql = "(farmers.registered_on >= ? AND farmers.participation = 'continuing')"
+    continued_sql = (
+        f"({earlier} AND farmers.participation = 'continuing' "
+        f"AND {changed_since})"
+    )
+    return {
+        "new": (new_sql, [start]),
+        "continued": (continued_sql, [start, start]),
+        "dropped": (
+            f"({earlier} AND farmers.participation = 'dropped_out' "
+            f"AND {dropped_since})",
+            [start, start],
+        ),
+        "to_update": (
+            f"({earlier} AND farmers.participation = 'continuing' "
+            f"AND NOT {changed_since})",
+            [start, start],
+        ),
+        "cohort": (
+            f"({earlier} AND (farmers.participation = 'continuing' "
+            f"OR {dropped_since}))",
+            [start, start],
+        ),
+        "this_year": (f"({continued_sql} OR {new_sql})", [start, start, start]),
+    }
+
+
+@app.get("/ping")
+def ping():
+    """So the phone can tell 'the server is reachable' from 'no signal'."""
+    return {"ok": True}
+
+
 @app.get("/lgs")
 def list_lgs(user: dict = Depends(current_user)):
+    parts = season_sql(season_start(date.today()).isoformat())
+    cohort_sql, cohort_values = parts["cohort"]
+    continued_sql, continued_values = parts["continued"]
+    dropped_sql, dropped_values = parts["dropped"]
+    new_sql, new_values = parts["new"]
+    todo_sql, todo_values = parts["to_update"]
     connection = sqlite3.connect("field.db")
     connection.row_factory = sqlite3.Row
-    rows = connection.execute("""
+    rows = connection.execute(f"""
         SELECT
             learning_groups.id,
             learning_groups.pu_id,
@@ -128,6 +205,18 @@ def list_lgs(user: dict = Depends(current_user)):
              AND farmers.participation = 'continuing') AS farmer_count,
             (SELECT COUNT(*) FROM farmer_drafts
              WHERE farmer_drafts.lg_id = learning_groups.id) AS draft_count,
+            (SELECT COUNT(*) FROM farmers
+             WHERE farmers.lg_id = learning_groups.id
+             AND {cohort_sql}) AS season_total,
+            (SELECT COUNT(*) FROM farmers
+             WHERE farmers.lg_id = learning_groups.id
+             AND ({continued_sql} OR {dropped_sql})) AS season_done,
+            (SELECT COUNT(*) FROM farmers
+             WHERE farmers.lg_id = learning_groups.id
+             AND {new_sql}) AS new_count,
+            (SELECT COUNT(*) FROM farmers
+             WHERE farmers.lg_id = learning_groups.id
+             AND {todo_sql}) AS to_update_count,
             facilitators.id AS ff_id,
             facilitators.name AS ff_name
         FROM learning_groups
@@ -141,7 +230,9 @@ def list_lgs(user: dict = Depends(current_user)):
         WHERE (? = 'pu_manager' AND learning_groups.pu_id = ?)
            OR (? = 'facilitator' AND assignments.ff_id = ?)
         ORDER BY pus.code, learning_groups.lg_number
-    """, (user["role"], user["pu_id"], user["role"], user["ff_id"])).fetchall()
+    """, cohort_values + continued_values + dropped_values + new_values
+        + todo_values
+        + [user["role"], user["pu_id"], user["role"], user["ff_id"]]).fetchall()
     connection.close()
     return [dict(row) for row in rows]
 
@@ -308,6 +399,9 @@ def search_farmers(
     ff_id: Optional[int] = None,
     q: str = "",
     status: str = "continuing",
+    gender: Optional[str] = None,
+    growing: Optional[str] = None,
+    season: Optional[str] = None,
     limit: int = 40,
     offset: int = 0,
     user: dict = Depends(current_user),
@@ -317,6 +411,12 @@ def search_farmers(
     never has to download hundreds of farmers at once."""
     if status not in ("continuing", "dropped_out", "all"):
         fail(None, 400, "Unknown status")
+    if gender is not None and gender not in ALLOWED_GENDERS:
+        fail(None, 400, "Unknown gender")
+    if growing not in (None, "yes", "no"):
+        fail(None, 400, "Unknown value for growing")
+    if season not in (None, "new", "continued", "dropped", "to_update", "this_year"):
+        fail(None, 400, "Unknown season filter")
     limit = max(1, min(limit, 100))
     offset = max(0, offset)
 
@@ -335,7 +435,20 @@ def search_farmers(
     if ff_id is not None:
         conditions.append("assignments.ff_id = ?")
         values.append(ff_id)
-    if status != "all":
+    if gender is not None:
+        conditions.append("farmers.gender = ?")
+        values.append(gender)
+    if growing is not None:
+        conditions.append("farmers.growing_cotton = ?")
+        values.append(1 if growing == "yes" else 0)
+    if season is not None:
+        # The season filters already say who is still in or out.
+        sql, season_values = season_sql(season_start(date.today()).isoformat())[
+            season
+        ]
+        conditions.append(sql)
+        values.extend(season_values)
+    elif status != "all":
         conditions.append("farmers.participation = ?")
         values.append(status)
 
@@ -403,18 +516,24 @@ DASHBOARD_FROM = """
 """
 
 
-def season_start(today):
-    """The cotton season starts on 1 May every year."""
-    this_year = date(today.year, 5, 1)
-    return this_year if today >= this_year else date(today.year - 1, 5, 1)
-
-
 @app.get("/farmers/dashboard")
 def farmers_dashboard(user: dict = Depends(current_user)):
-    scope = (user["role"], user["pu_id"], user["role"], user["ff_id"])
-    start = season_start(date.today()).isoformat()
+    scope = [user["role"], user["pu_id"], user["role"], user["ff_id"]]
+    first_day = season_start(date.today())
+    start = first_day.isoformat()
+    parts = season_sql(start)
     connection = sqlite3.connect("field.db")
 
+    def count(key):
+        sql, values = parts[key]
+        return connection.execute(
+            "SELECT COUNT(*) " + DASHBOARD_FROM + " AND " + sql,
+            scope + values,
+        ).fetchone()[0]
+
+    # The figures about this season's farmers (continued + new). Farmers
+    # who still have last season's details are not counted in them yet.
+    sql, values = parts["this_year"]
     total, growing, women, area = connection.execute(
         """
         SELECT COUNT(*),
@@ -423,62 +542,57 @@ def farmers_dashboard(user: dict = Depends(current_user)):
                COALESCE(SUM(farmers.area_under_cotton), 0)
         """
         + DASHBOARD_FROM
-        + " AND farmers.participation = 'continuing'",
-        scope,
+        + " AND "
+        + sql,
+        scope + values,
     ).fetchone()
 
-    added = connection.execute(
-        "SELECT COUNT(*) " + DASHBOARD_FROM + " AND farmers.registered_on >= ?",
-        scope + (start,),
-    ).fetchone()[0]
-
-    # Dropped out this season: now dropped out, and the drop-out was recorded
-    # on or after the season start.
-    dropped = connection.execute(
-        "SELECT COUNT(*) "
-        + DASHBOARD_FROM
-        + """
-        AND farmers.participation = 'dropped_out'
-        AND EXISTS (
-            SELECT 1 FROM farmer_change_log log
-            WHERE log.farmer_id = farmers.id
-            AND log.field = 'Participation'
-            AND log.new_value = 'Dropped out'
-            AND log.changed_on >= ?)
-        """,
-        scope + (start,),
-    ).fetchone()[0]
-
-    # Updated: registered before this season, and had profile details
-    # (anything except participation) changed since it began.
-    updated = connection.execute(
-        "SELECT COUNT(*) "
-        + DASHBOARD_FROM
-        + """
-        AND farmers.registered_on < ?
-        AND EXISTS (
-            SELECT 1 FROM farmer_change_log log
-            WHERE log.farmer_id = farmers.id
-            AND log.field != 'Participation'
-            AND log.changed_on >= ?)
-        """,
-        scope + (start, start),
-    ).fetchone()[0]
-    connection.close()
-
-    return {
-        "participating": total,
-        "growing_cotton": growing,
-        "women": women,
-        "women_percent": round(100 * women / total) if total else 0,
-        "area_under_cotton": round(area, 1),
-        "season": {
-            "start": start,
-            "updated": updated,
-            "added": added,
-            "dropped_out": dropped,
+    result = {
+        "season": {"start": start, "label": season_label(first_day)},
+        "this_year": {
+            "total": total,
+            "continued": count("continued"),
+            "new": count("new"),
+            "growing_cotton": growing,
+            "women": women,
+            "women_percent": round(100 * women / total) if total else 0,
+            "area_under_cotton": round(area, 1),
+        },
+        "last_year": {
+            "total": count("cohort"),
+            "continued": count("continued"),
+            "dropped": count("dropped"),
+            "to_update": count("to_update"),
         },
     }
+    connection.close()
+    return result
+
+
+def registered_this_season(connection, farmer_id):
+    row = connection.execute(
+        "SELECT registered_on FROM farmers WHERE id = ?", (farmer_id,)
+    ).fetchone()
+    start = season_start(date.today()).isoformat()
+    return row is not None and row[0] is not None and row[0] >= start
+
+
+def season_status(connection, farmer_id):
+    """'new', 'continued', 'dropped', 'to_update', or 'none' (not part of this
+    season's update, for example dropped out in an earlier season)."""
+    parts = season_sql(season_start(date.today()).isoformat())
+    keys = ["new", "continued", "dropped", "to_update"]
+    sql = ", ".join(parts[key][0] for key in keys)
+    values = []
+    for key in keys:
+        values.extend(parts[key][1])
+    row = connection.execute(
+        f"SELECT {sql} FROM farmers WHERE farmers.id = ?", values + [farmer_id]
+    ).fetchone()
+    for key, flag in zip(keys, row):
+        if flag:
+            return key
+    return "none"
 
 
 @app.get("/farmers/{farmer_id}")
@@ -522,10 +636,13 @@ def get_farmer(farmer_id: int, user: dict = Depends(current_user)):
         """,
         (farmer_id,),
     ).fetchone()
-    connection.close()
     if row is None:
+        connection.close()
         raise HTTPException(status_code=404, detail="Farmer not found")
-    return dict(row)
+    farmer = dict(row)
+    farmer["season_status"] = season_status(connection, farmer_id)
+    connection.close()
+    return farmer
 
 ALLOWED_GENDERS = ["Female", "Male", "Other"]
 
@@ -907,6 +1024,40 @@ def edit_farmer(
     return {"message": "Saved"}
 
 
+@app.post("/farmers/{farmer_id}/confirm")
+def confirm_farmer(farmer_id: int, user: dict = Depends(current_user)):
+    """'These details are still right this season.' Counts as an update."""
+    connection = sqlite3.connect("field.db")
+    require_farmer(connection, user, farmer_id, True)
+    status = season_status(connection, farmer_id)
+    if status == "continued":
+        connection.close()
+        return {"message": "Already up to date this season"}
+    if status == "new":
+        connection.close()
+        raise HTTPException(
+            status_code=400,
+            detail={"form": "Registered this season, so nothing to confirm"},
+        )
+    if status != "to_update":
+        connection.close()
+        raise HTTPException(
+            status_code=400,
+            detail={"form": "Only farmers who are still participating can be confirmed"},
+        )
+    connection.execute(
+        """
+        INSERT INTO farmer_change_log
+            (farmer_id, field, old_value, new_value, changed_on, reason)
+        VALUES (?, 'Confirmed', '', 'Details confirmed', ?, '')
+        """,
+        (farmer_id, date.today().isoformat()),
+    )
+    connection.commit()
+    connection.close()
+    return {"message": "Confirmed"}
+
+
 @app.get("/farmers/{farmer_id}/changes")
 def farmer_changes(farmer_id: int, user: dict = Depends(current_user)):
     connection = sqlite3.connect("field.db")
@@ -939,6 +1090,11 @@ class ParticipationChange(BaseModel):
     reason: str = ""
     note: str = ""
 
+
+NEW_FARMER_MESSAGE = (
+    "Farmers registered this season cannot be marked as dropped out. "
+    "If one was added by mistake, delete the farmer instead."
+)
 
 PARTICIPATION_LABELS = {"continuing": "Continuing", "dropped_out": "Dropped out"}
 
@@ -978,6 +1134,12 @@ def change_participation(
     if row is None:
         connection.close()
         raise HTTPException(status_code=404, detail={"form": "Farmer not found"})
+    if registered_this_season(connection, farmer_id):
+        connection.close()
+        raise HTTPException(
+            status_code=400,
+            detail={"form": NEW_FARMER_MESSAGE},
+        )
     if row[0] == body.participation:
         connection.close()
         raise HTTPException(
@@ -1002,6 +1164,80 @@ def change_participation(
     connection.commit()
     connection.close()
     return {"message": "Saved"}
+
+
+DELETE_REASONS = [
+    "Added by mistake",
+    "Duplicate of another farmer",
+    "Left the programme",
+    "Other",
+]
+
+
+class DeleteFarmer(BaseModel):
+    reason: str = ""
+    note: str = ""
+
+
+@app.post("/farmers/{farmer_id}/delete")
+def delete_farmer(
+    farmer_id: int, body: DeleteFarmer, user: dict = Depends(current_user)
+):
+    """Removes a farmer who was registered this season (added by mistake).
+    The details are copied to an archive table first. Older farmers are
+    marked as dropped out instead, so last year's records stay complete."""
+    note = " ".join(body.note.split())
+    errors = {}
+    if body.reason not in DELETE_REASONS:
+        errors["reason"] = "Please choose a reason"
+    if len(note) > 200:
+        errors["note"] = "Note is too long (at most 200 characters)"
+    if errors:
+        raise HTTPException(status_code=400, detail=errors)
+
+    connection = sqlite3.connect("field.db")
+    require_farmer(connection, user, farmer_id, True)
+    if not registered_this_season(connection, farmer_id):
+        connection.close()
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "form": "Only farmers registered this season can be deleted. "
+                "Mark older farmers as dropped out instead."
+            },
+        )
+    row = connection.execute(
+        f"""
+        SELECT {FARMER_CODE_SQL}, farmers.lg_id, farmers.farmer_number,
+               farmers.name, farmers.gender, farmers.growing_cotton,
+               farmers.mobile, farmers.total_landholding,
+               farmers.area_under_cotton, farmers.water_regime,
+               farmers.registered_on
+        FROM farmers
+        JOIN learning_groups ON learning_groups.id = farmers.lg_id
+        JOIN pus ON pus.id = learning_groups.pu_id
+        WHERE farmers.id = ?
+        """,
+        (farmer_id,),
+    ).fetchone()
+    reason = f"{body.reason} - {note}" if note else body.reason
+    connection.execute(
+        """
+        INSERT INTO deleted_farmers
+            (farmer_id, farmer_code, lg_id, farmer_number, name, gender,
+             growing_cotton, mobile, total_landholding, area_under_cotton,
+             water_regime, registered_on, deleted_on, deleted_by, reason)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (farmer_id, *row, date.today().isoformat(), user["name"], reason),
+    )
+    connection.execute(
+        "DELETE FROM farmer_change_log WHERE farmer_id = ?", (farmer_id,)
+    )
+    connection.execute("DELETE FROM farmers WHERE id = ?", (farmer_id,))
+    connection.commit()
+    connection.close()
+    return {"message": "Deleted", "farmer_code": row[0]}
 
 
 class BulkParticipation(BaseModel):
@@ -1038,6 +1274,17 @@ def bulk_participation(
         )
     for farmer_id in ids:
         require_farmer(connection, user, farmer_id, True)
+
+    new_ids = [
+        farmer_id for farmer_id in ids
+        if registered_this_season(connection, farmer_id)
+    ]
+    if new_ids:
+        connection.close()
+        raise HTTPException(
+            status_code=400,
+            detail={"form": NEW_FARMER_MESSAGE},
+        )
 
     to_change = [row for row in rows if row[1] != body.participation]
     if len(to_change) == 0:

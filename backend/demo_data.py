@@ -86,3 +86,35 @@ def add_demo_history(connection, rng, today):
                 "new_value, changed_on, reason) VALUES (?, ?, ?, ?, ?, ?)",
                 (farmer_id, entry[0], entry[1], entry[2], when.isoformat(), ""),
             )
+
+
+def add_demo_confirmations(connection, rng, today):
+    """Made-up 'details confirmed' entries, so the season's progress tracker
+    shows some farmers already done. Does nothing if any already exist."""
+    already = connection.execute(
+        "SELECT 1 FROM farmer_change_log WHERE field = 'Confirmed' LIMIT 1"
+    ).fetchone()
+    if already:
+        return
+    start = season_start(today)
+    rows = connection.execute(
+        """
+        SELECT id FROM farmers
+        WHERE participation = 'continuing' AND registered_on < ?
+        AND id NOT IN (
+            SELECT farmer_id FROM farmer_change_log
+            WHERE field != 'Participation' AND changed_on >= ?)
+        ORDER BY id
+        """,
+        (start.isoformat(), start.isoformat()),
+    ).fetchall()
+    days = max((today - start).days, 1)
+    for (farmer_id,) in rows:
+        if rng.random() < 0.3:
+            when = start + timedelta(days=rng.randint(0, days))
+            connection.execute(
+                "INSERT INTO farmer_change_log (farmer_id, field, old_value, "
+                "new_value, changed_on, reason) VALUES (?, 'Confirmed', '', "
+                "'Details confirmed', ?, '')",
+                (farmer_id, when.isoformat()),
+            )

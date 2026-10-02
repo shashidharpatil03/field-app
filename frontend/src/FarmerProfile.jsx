@@ -1,14 +1,54 @@
 import { useState, useEffect } from "react";
 import EditFarmer from "./EditFarmer.jsx";
 import ParticipationChange from "./ParticipationChange.jsx";
+import DeleteFarmer from "./DeleteFarmer.jsx";
 import { apiFetch } from "./api.js";
 
-function FarmerProfile({ farmerId, onBack }) {
+// Where this farmer stands in this season's update of last season's data.
+function SeasonStatus({ status, busy, error, onConfirm }) {
+  const labels = {
+    new: "New this season",
+    continued: "Continued this season",
+    dropped: "Dropped out this season",
+    to_update: "Still to update this season",
+  };
+  if (!labels[status]) {
+    return null;
+  }
+  return (
+    <div className="card">
+      <div className="profile-row">
+        <span className="label">This season</span>
+        <span
+          className={`badge ${status === "to_update" ? "neutral" : status === "dropped" ? "dropped_out" : "continuing"}`}
+        >
+          {labels[status]}
+        </span>
+      </div>
+      {status === "to_update" && (
+        <div>
+          <p>
+            Check the details with the farmer. If everything is still right,
+            confirm. If something changed, use Edit details instead.
+          </p>
+          <button onClick={onConfirm} disabled={busy}>
+            {busy ? "Confirming..." : "Confirm details for this season"}
+          </button>
+          {error && <p className="error">{error}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FarmerProfile({ farmerId, onBack, onDeleted }) {
   const [farmer, setFarmer] = useState(null);
   const [changes, setChanges] = useState([]);
   const [editing, setEditing] = useState(false);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState("");
 
   useEffect(() => {
     apiFetch(`http://localhost:8000/farmers/${farmerId}/changes`)
@@ -25,6 +65,30 @@ function FarmerProfile({ farmerId, onBack }) {
       .then((data) => setFarmer(data))
       .catch((err) => setError(err.message));
   }, [farmerId, version]);
+
+  async function confirmDetails() {
+    setConfirming(true);
+    setConfirmError("");
+    try {
+      const response = await apiFetch(
+        `http://localhost:8000/farmers/${farmerId}/confirm`,
+        { method: "POST" },
+      );
+      if (response.ok) {
+        setVersion(version + 1);
+      } else {
+        const data = await response.json();
+        setConfirmError(
+          data.detail && data.detail.form
+            ? data.detail.form
+            : "Could not confirm. Please try again.",
+        );
+      }
+    } catch {
+      setConfirmError("Could not reach the server. Please try again.");
+    }
+    setConfirming(false);
+  }
 
   if (error) {
     return (
@@ -45,6 +109,13 @@ function FarmerProfile({ farmerId, onBack }) {
 
       <h1>{farmer.farmer_code}</h1>
       <h2>{farmer.name}</h2>
+
+      <SeasonStatus
+        status={farmer.season_status}
+        busy={confirming}
+        error={confirmError}
+        onConfirm={confirmDetails}
+      />
 
       {editing ? (
         <div className="card">
@@ -110,10 +181,12 @@ function FarmerProfile({ farmerId, onBack }) {
         </div>
       </div>
 
-      <ParticipationChange
-        farmer={farmer}
-        onChanged={() => setVersion(version + 1)}
-      />
+      {farmer.season_status !== "new" && (
+        <ParticipationChange
+          farmer={farmer}
+          onChanged={() => setVersion(version + 1)}
+        />
+      )}
 
       <div className="card">
         <div className="profile-row">
@@ -134,12 +207,22 @@ function FarmerProfile({ farmerId, onBack }) {
         </div>
       </div>
 
+      {farmer.season_status === "new" && (
+        <DeleteFarmer farmer={farmer} onDeleted={onDeleted} />
+      )}
+
       {changes.length > 0 && (
         <div className="card">
           <h3>Change history</h3>
           {changes.map((c) => (
             <p key={c.id} className="change">
-              <strong>{c.field}:</strong> {c.old_value} → {c.new_value}
+              {c.field === "Confirmed" ? (
+                <strong>{c.new_value}</strong>
+              ) : (
+                <span>
+                  <strong>{c.field}:</strong> {c.old_value} → {c.new_value}
+                </span>
+              )}
               <br />
               <small>
                 {c.changed_on}

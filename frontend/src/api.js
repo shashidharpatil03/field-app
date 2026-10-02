@@ -26,8 +26,25 @@ const TIMEOUT_MS = 20000;
 function fixAddress(url) {
   return url.replace(
     "http://localhost:8000",
-    `http://${window.location.hostname}:8000`
+    `http://${window.location.hostname}:8000`,
   );
+}
+
+// Asks the server "are you there?" and gives up after 5 seconds. Used to
+// tell "the server is reachable" from "the phone only thinks it is online".
+export async function pingServer() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    const response = await fetch(fixAddress("http://localhost:8000/ping"), {
+      signal: controller.signal,
+    });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export function apiFetch(url, options = {}) {
@@ -47,6 +64,12 @@ export function apiFetch(url, options = {}) {
     .then((response) => {
       if (response.status === 401) {
         onUnauthorized();
+      }
+      // Anything saved on the server counts as "data sent". offline.js
+      // listens for this and remembers the time.
+      const method = (options.method || "GET").toUpperCase();
+      if (response.ok && (method === "POST" || method === "PUT")) {
+        window.dispatchEvent(new Event("data-sent"));
       }
       return response;
     })

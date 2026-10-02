@@ -114,6 +114,9 @@ function FarmerList({
     if (filters.villageId) params.set("village_id", filters.villageId);
     if (filters.ffId) params.set("ff_id", filters.ffId);
     if (filters.q.trim()) params.set("q", filters.q.trim());
+    if (filters.gender) params.set("gender", filters.gender);
+    if (filters.growing) params.set("growing", filters.growing);
+    if (filters.season) params.set("season", filters.season);
     params.set("status", filters.status);
     params.set("limit", String(PAGE_SIZE));
     params.set("offset", String(offset));
@@ -155,6 +158,9 @@ function FarmerList({
     filters.ffId,
     filters.q,
     filters.status,
+    filters.gender,
+    filters.growing,
+    filters.season,
     version,
   ]);
 
@@ -274,7 +280,10 @@ function FarmerList({
     filters.villageId !== "" ||
     filters.ffId !== "" ||
     filters.q !== "" ||
-    filters.status !== "continuing";
+    filters.status !== "continuing" ||
+    filters.gender !== "" ||
+    filters.growing !== "" ||
+    filters.season !== "";
 
   function clearFilters() {
     setTyped("");
@@ -284,8 +293,24 @@ function FarmerList({
       ffId: "",
       q: "",
       status: "continuing",
+      gender: "",
+      growing: "",
+      season: "",
     });
     stopSelecting();
+  }
+
+  // The filters that came from tapping a dashboard figure, shown as chips
+  // that can each be removed.
+  const chips = [];
+  if (filters.gender === "Female") {
+    chips.push({ name: "gender", text: t("chipWomen") });
+  }
+  if (filters.growing === "yes") {
+    chips.push({ name: "growing", text: t("chipGrowing") });
+  }
+  if (filters.season) {
+    chips.push({ name: "season", text: t(`seasonFilter_${filters.season}`) });
   }
 
   return (
@@ -295,6 +320,21 @@ function FarmerList({
 
       {message && <p className="message">{message}</p>}
       {localMessage && <p className="message">{localMessage}</p>}
+
+      {chips.length > 0 && (
+        <div className="chips">
+          {chips.map((chipItem) => (
+            <button
+              key={chipItem.name}
+              className="filter-chip"
+              aria-label={`${chipItem.text}. ${t("removeFilter")}`}
+              onClick={() => changeFilter(chipItem.name, "")}
+            >
+              {chipItem.text} <span aria-hidden="true">✕</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="filters">
         <div className="field filter-wide">
@@ -363,7 +403,12 @@ function FarmerList({
           <select
             id="f-status"
             value={filters.status}
-            onChange={(e) => changeFilter("status", e.target.value)}
+            disabled={filters.season !== ""}
+            onChange={(e) => {
+              // Choosing a status replaces any season filter.
+              setFilters({ ...filters, status: e.target.value, season: "" });
+              stopSelecting();
+            }}
           >
             <option value="continuing">{t("statusContinuing")}</option>
             <option value="dropped_out">{t("droppedOut")}</option>

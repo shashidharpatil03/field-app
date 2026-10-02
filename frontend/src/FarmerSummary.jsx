@@ -1,14 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useT, useLanguage } from "./i18n.jsx";
-import { apiFetch } from "./api.js";
-
-// "2026-05-01" -> "1 May 2026" (or the Marathi form)
-function showDate(iso, lang) {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString(
-    lang === "mr" ? "mr-IN" : "en-IN",
-    { day: "numeric", month: "long", year: "numeric" },
-  );
-}
+import { useT } from "./i18n.jsx";
 
 // A number that counts up to its value (a short 0.5 second animation).
 // Phones set to "reduce motion" get the number straight away.
@@ -65,103 +56,117 @@ function Ring({ percent }) {
   );
 }
 
-// refreshKey changes whenever the screen below has reloaded its data,
-// which makes this summary fetch fresh numbers too.
-function FarmerSummary({ refreshKey }) {
+// The numbers at the top of the dashboard.
+// The big green card is the number of farmers this season: farmers
+// continued from last year plus newly added ones. Under it, a button shows
+// how many of last year's farmers are still to be updated. The figures
+// below cover only this season's farmers (continued + new); each card
+// except the area is a button that opens exactly those farmers.
+// onOpen(filters) is given the filters to apply.
+export function Hero({ data, onOpen }) {
   const t = useT();
-  const { lang } = useLanguage();
-  const [data, setData] = useState(null);
+  const year = data?.this_year;
+  const last = data?.last_year;
 
-  useEffect(() => {
-    apiFetch("http://localhost:8000/farmers/dashboard")
-      .then((response) => response.json())
-      .then((result) => setData(result))
-      .catch(() => {
-        // No signal: keep showing the last numbers (or dashes).
-      });
-  }, [refreshKey]);
+  return (
+    <div>
+      <div className="hero">
+        <button
+          className="hero-top"
+          onClick={() => onOpen({ season: "this_year" })}
+        >
+          <span className="hero-label">
+            {t("heroLabel", { season: data ? data.season.label : "" })}
+          </span>
+          <span className="hero-number">
+            <Num value={year?.total} />
+          </span>
+          {year && (
+            <span className="hero-sub">
+              {t("heroSub", { continued: year.continued, added: year.new })}
+            </span>
+          )}
+        </button>
+        {last &&
+          (last.to_update > 0 ? (
+            <button
+              className="hero-todo"
+              onClick={() => onOpen({ season: "to_update" })}
+            >
+              <span>
+                <b>{last.to_update}</b> {t("heroTodo")}
+              </span>
+              <span className="chev" aria-hidden="true">
+                ›
+              </span>
+            </button>
+          ) : (
+            last.total > 0 && <p className="hero-done">{t("heroAllDone")}</p>
+          ))}
+      </div>
+    </div>
+  );
+}
+
+// The figures about this season's farmers (continued + new).
+function FarmerSummary({ data, onOpen }) {
+  const t = useT();
+  const year = data?.this_year;
 
   const growingPercent =
-    data && data.participating > 0
-      ? Math.round((100 * data.growing_cotton) / data.participating)
+    year && year.total > 0
+      ? Math.round((100 * year.growing_cotton) / year.total)
       : 0;
 
   return (
     <div>
+      <h2 className="section-h">{t("thisYearTitle")}</h2>
+      <p className="section-note">{t("thisYearNote")}</p>
       <div className="stats">
-        <div className="stat">
-          <div className="stat-number">
-            <Num value={data?.participating} />
-          </div>
-          <div className="stat-label">{t("statParticipating")}</div>
-        </div>
-        <div className="stat">
-          <div className="stat-number">
-            <Num value={data?.growing_cotton} />
-          </div>
-          <div className="stat-label">{t("statGrowing")}</div>
-          {data && (
-            <div>
-              <div className="bar" aria-hidden="true">
-                <div
+        <button
+          className="stat stat-button"
+          onClick={() => onOpen({ growing: "yes", season: "this_year" })}
+        >
+          <span className="stat-number">
+            <Num value={year?.growing_cotton} />
+          </span>
+          <span className="stat-label">{t("statGrowing")}</span>
+          {year && (
+            <span className="stat-extra">
+              <span className="bar" aria-hidden="true">
+                <span
                   className="bar-fill"
                   style={{ width: `${growingPercent}%` }}
                 />
-              </div>
-              <div className="stat-sub">
+              </span>
+              <span className="stat-sub">
                 {t("statShare", { pct: growingPercent })}
-              </div>
-            </div>
+              </span>
+            </span>
           )}
-        </div>
-        <div className="stat">
-          <div className="stat-top">
-            <div className="stat-number">
-              <Num value={data?.women} />
-            </div>
-            {data && <Ring percent={data.women_percent} />}
-          </div>
-          <div className="stat-label">{t("statWomen")}</div>
-          {data && (
-            <div className="stat-sub">
-              {t("statShare", { pct: data.women_percent })}
-            </div>
+        </button>
+        <button
+          className="stat stat-button"
+          onClick={() => onOpen({ gender: "Female", season: "this_year" })}
+        >
+          <span className="stat-top">
+            <span className="stat-number">
+              <Num value={year?.women} />
+            </span>
+            {year && <Ring percent={year.women_percent} />}
+          </span>
+          <span className="stat-label">{t("statWomen")}</span>
+          {year && (
+            <span className="stat-sub">
+              {t("statShare", { pct: year.women_percent })}
+            </span>
           )}
-        </div>
-        <div className="stat">
+        </button>
+        <div className="stat stat-wide">
           <div className="stat-number">
-            <Num value={data?.area_under_cotton} decimals={1} />
+            <Num value={year?.area_under_cotton} decimals={1} />
           </div>
           <div className="stat-label">{t("statArea")}</div>
-        </div>
-      </div>
-
-      <div className="season-box">
-        <h3>{t("seasonTitle")}</h3>
-        {data && (
-          <p className="season-since">
-            {t("seasonSince", { date: showDate(data.season.start, lang) })}
-          </p>
-        )}
-        <div className="season-numbers">
-          <div className="s-updated">
-            <div className="stat-number">
-              <Num value={data?.season.updated} />
-            </div>
-            <div className="stat-label">{t("seasonUpdated")}</div>
-          </div>
-          <div className="s-added">
-            <div className="stat-number">
-              <Num value={data?.season.added} />
-            </div>
-            <div className="stat-label">{t("seasonAdded")}</div>
-          </div>
-          <div className="s-dropped">
-            <div className="stat-number">
-              <Num value={data?.season.dropped_out} />
-            </div>
-            <div className="stat-label">{t("seasonDropped")}</div>
-          </div>
         </div>
       </div>
     </div>
