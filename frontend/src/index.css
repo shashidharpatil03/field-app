@@ -1524,3 +1524,189 @@ button.danger.solid {
   color: var(--heading);
   text-align: right;
 }
+
+/* ---- learning group card: code, village | facilitator, total, four chips ---- */
+
+.lgc {
+  background: var(--card);
+  border: 1.5px solid var(--border-card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 12px 14px;
+}
+
+.lgc-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  font-weight: 400;
+}
+
+.lgc-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lgc-code {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.lgc-sub {
+  font-size: 16px;
+  color: var(--heading);
+  font-weight: 600;
+}
+
+.lgc-sep {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.lgc-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.lgc-number {
+  color: var(--deep-green);
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.lgc-caption {
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* the four chips: two rows of two, all the same size */
+.lgc-band,
+.lgc-rest {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.lgc-band {
+  margin-top: 10px;
+}
+
+.lgc-season {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.lgc-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 36px;
+  min-height: 36px;
+  margin: 0;
+  padding: 0 9px;
+  border-width: 1.5px;
+  border-color: var(--border-soft);
+  color: var(--text);
+  font-weight: 400;
+  font-size: 13px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.lgc-chip-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lgc-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lgc-chip-num {
+  min-width: 2ch;
+  text-align: right;
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.lgc-chip.urgent {
+  border-color: var(--danger);
+  background: #fbeaea;
+}
+
+.lgc-chip:disabled {
+  opacity: 1;
+  background: #f7f6f1;
+  color: #6a7885;
+  border-color: var(--border-soft);
+}
+
+.dash-card {
+  margin-bottom: 12px;
+}
+
+/* this season's two chips share the colour of the big total */
+.lgc-chip.season {
+  color: var(--deep-green);
+  border-color: #b8dac8;
+}
+
+/* the dashboard card is the big one */
+.dash-card {
+  padding: 16px 16px 14px;
+}
+
+.dash-card .lgc-code {
+  font-size: 22px;
+}
+
+.dash-card .lgc-season {
+  font-size: 16px;
+}
+
+.dash-card .lgc-number {
+  font-size: 60px;
+}
+
+.dash-card .lgc-band,
+.dash-card .lgc-rest {
+  gap: 8px;
+}
+
+.dash-card .lgc-band {
+  margin-top: 14px;
+}
+
+.dash-card .lgc-rest {
+  margin-top: 8px;
+}
+
+.dash-card .lgc-chip {
+  height: 46px;
+  min-height: 46px;
+  padding: 0 8px;
+  font-size: 14px;
+}

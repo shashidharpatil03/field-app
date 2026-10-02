@@ -61,9 +61,11 @@ function FarmerData({ onHome, user }) {
     loadLgs();
   }, []);
 
-  function openGroup(lg) {
+  // Opens one group's farmers. `extra` can narrow it further, for example
+  // { season: "to_update" } when the "Still to update" chip is tapped.
+  function openGroup(lg, extra = {}) {
     setMessage("");
-    setFilters({ ...NO_FILTERS, lgId: String(lg.id) });
+    setFilters({ ...NO_FILTERS, lgId: String(lg.id), ...extra });
     setScreen("farmers");
   }
 

@@ -1,13 +1,18 @@
 import { useState } from "react";
 import FarmerNav from "./FarmerNav.jsx";
-import StackedBar from "./StackedBar.jsx";
-import { barParts } from "./ProgressTracker.jsx";
+import {
+  DONE_COLOR,
+  DROPPED_COLOR,
+  REMAINING_COLOR,
+} from "./ProgressTracker.jsx";
+import CountChip from "./CountChip.jsx";
 import { useT } from "./i18n.jsx";
 import { formatWhen } from "./offline.js";
 
-// One compact row per learning group, with a small progress ring for the
-// update of last season's farmers and the number of newly added farmers.
-// Tapping a row opens the farmer list for that group.
+const NEW_COLOR = "#45639e";
+
+// One card per learning group. Tapping the top part opens all its farmers;
+// tapping a chip opens only the farmers in that group with that status.
 function LearningGroups({ lgs, isManager, savedCopyFrom, nav, onOpen }) {
   const t = useT();
   const [query, setQuery] = useState("");
@@ -46,82 +51,74 @@ function LearningGroups({ lgs, isManager, savedCopyFrom, nav, onOpen }) {
 
       <ul className="group-list">
         {shown.map((lg) => {
-          // A copy saved on the phone before this feature existed has no
-          // season numbers, so show nothing extra for it.
+          // A copy saved on the phone before these numbers existed has
+          // none of them, so show only the code and village for it.
           const hasSeason =
-            typeof lg.season_total === "number" &&
-            typeof lg.season_continued === "number";
+            typeof lg.season_farmers === "number" &&
+            typeof lg.season_continued === "number" &&
+            typeof lg.season_dropped === "number" &&
+            typeof lg.new_count === "number" &&
+            typeof lg.to_update_count === "number";
           return (
             <li key={lg.id}>
-              <button className="group-row" onClick={() => onOpen(lg)}>
-                <span className="group-text">
-                  <span className="group-top">
-                    <span className="group-code">{lg.lg_code}</span>
-                    <span className="group-side">
-                      <span className="group-village">{lg.village}</span>
-                      {typeof lg.season_farmers === "number" && (
-                        <small>
-                          {t("lgThisSeason", { n: lg.season_farmers })}
-                        </small>
-                      )}
-                    </span>
-                  </span>
-                  {isManager && (
-                    <small>
-                      {t("facilitator")} {lg.ff_name ?? t("nobodyYet")}
-                    </small>
-                  )}
-                  <span className="group-tags">
-                    {lg.draft_count > 0 && (
-                      <span className="badge neutral">
-                        {t("draftsBadge", { n: lg.draft_count })}
-                      </span>
-                    )}
-                    {hasSeason && lg.to_update_count > 0 && (
-                      <span className="badge todo">
-                        {t("toUpdateChip", { n: lg.to_update_count })}
-                      </span>
-                    )}
-                    {hasSeason &&
-                      lg.to_update_count === 0 &&
-                      lg.season_total > 0 && (
-                        <span className="badge continuing">
-                          {t("allUpdatedChip")}
+              <div className="lgc">
+                <button className="lgc-main" onClick={() => onOpen(lg)}>
+                  <span className="lgc-text">
+                    <span className="lgc-code">{lg.lg_code}</span>
+                    <span className="lgc-sub">
+                      {lg.village}
+                      {isManager && (
+                        <span>
+                          <span className="lgc-sep"> | </span>
+                          {lg.ff_name ?? t("nobodyYet")}
                         </span>
                       )}
-                    {hasSeason && lg.new_count > 0 && (
-                      <span className="badge continuing">
-                        {t("newChip", { n: lg.new_count })}
-                      </span>
-                    )}
+                    </span>
                   </span>
-                  {hasSeason && lg.season_total > 0 && (
-                    <span className="group-progress">
-                      <StackedBar
-                        size="thin"
-                        parts={barParts(
-                          lg.season_continued,
-                          lg.season_dropped,
-                          lg.to_update_count,
-                        )}
-                        name={t("lgDone", {
-                          done: lg.season_done,
-                          total: lg.season_total,
-                        })}
-                      />
-                      <small>
-                        {t("lgDone", {
-                          done: lg.season_done,
-                          total: lg.season_total,
-                        })}
-                      </small>
+                  {hasSeason && (
+                    <span className="lgc-total">
+                      <span className="lgc-number">{lg.season_farmers}</span>
+                      <span className="lgc-caption">{t("lgFarmersLabel")}</span>
                     </span>
                   )}
-                </span>
-                <span className="chevron" aria-hidden="true">
-                  ›
-                </span>
-              </button>
+                </button>
+
+                {hasSeason && (
+                  <div>
+                    <div className="lgc-band">
+                      <CountChip
+                        color={DONE_COLOR}
+                        season
+                        label={t("statusContinued")}
+                        value={lg.season_continued}
+                        onPick={() => onOpen(lg, { season: "continued" })}
+                      />
+                      <CountChip
+                        color={NEW_COLOR}
+                        season
+                        label={t("statusNew")}
+                        value={lg.new_count}
+                        onPick={() => onOpen(lg, { season: "new" })}
+                      />
+                    </div>
+                    <div className="lgc-rest">
+                      <CountChip
+                        color={DROPPED_COLOR}
+                        label={t("droppedOut")}
+                        value={lg.season_dropped}
+                        onPick={() => onOpen(lg, { season: "dropped" })}
+                      />
+                      <CountChip
+                        color={REMAINING_COLOR}
+                        label={t("statusToUpdate")}
+                        value={lg.to_update_count}
+                        urgent
+                        onPick={() => onOpen(lg, { season: "to_update" })}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             </li>
           );
         })}

@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useT } from "./i18n.jsx";
-import ProgressTracker from "./ProgressTracker.jsx";
+import CountChip from "./CountChip.jsx";
+import {
+  DONE_COLOR,
+  DROPPED_COLOR,
+  REMAINING_COLOR,
+} from "./ProgressTracker.jsx";
 
 // A number that counts up to its value (a short 0.5 second animation).
 // Phones set to "reduce motion" get the number straight away.
@@ -38,45 +43,70 @@ export function Num({ value, decimals = 0 }) {
   return typeof value === "number" ? shown.toFixed(decimals) : "–";
 }
 
-// The first card of the dashboard. The green top is this season's farmers:
-// the big number, and two buttons for the farmers who continued from last
-// year and the newly added ones. The white bottom is last year's farmers
-// and how far their update has got.
+const NEW_COLOR = "#45639e";
+
+// The first card of the dashboard, laid out like a learning group card:
+// this season's farmers as the big number, then four chips. Continued and
+// newly added (in the green band) add up to the big number; dropped out and
+// still to update are last year's farmers who are not in it.
 function FarmersCard({ data, onOpen }) {
   const t = useT();
   const year = data?.this_year;
+  const last = data?.last_year;
 
   return (
-    <div className="merged">
-      <div className="hero">
-        <button
-          className="hero-top"
-          onClick={() => onOpen({ season: "this_year" })}
-        >
-          <span className="hero-label">
-            {t("heroLabel", { season: data ? data.season.label : "" })}
+    <div className="lgc dash-card">
+      <button
+        className="lgc-main"
+        onClick={() => onOpen({ season: "this_year" })}
+      >
+        <span className="lgc-text">
+          <span className="lgc-code">{t("dashTitle")}</span>
+          <span className="lgc-season">
+            {t("dashSeason", { season: data ? data.season.label : "" })}
           </span>
-          <span className="hero-number">
+        </span>
+        <span className="lgc-total">
+          <span className="lgc-number">
             <Num value={year?.total} />
           </span>
-        </button>
-        {year && (
-          <div className="pills">
-            <button
-              className="pill"
-              onClick={() => onOpen({ season: "continued" })}
-            >
-              <b>{year.continued}</b>
-              {t("pillContinued")}
-            </button>
-            <button className="pill" onClick={() => onOpen({ season: "new" })}>
-              <b>{year.new}</b>
-              {t("pillNew")}
-            </button>
+        </span>
+      </button>
+      {year && last && (
+        <div>
+          <div className="lgc-band">
+            <CountChip
+              color={DONE_COLOR}
+              season
+              label={t("statusContinued")}
+              value={year.continued}
+              onPick={() => onOpen({ season: "continued" })}
+            />
+            <CountChip
+              color={NEW_COLOR}
+              season
+              label={t("statusNew")}
+              value={year.new}
+              onPick={() => onOpen({ season: "new" })}
+            />
           </div>
-        )}
-      </div>
-      {data && <ProgressTracker lastYear={data.last_year} onOpen={onOpen} />}
+          <div className="lgc-rest">
+            <CountChip
+              color={DROPPED_COLOR}
+              label={t("droppedOut")}
+              value={last.dropped}
+              onPick={() => onOpen({ season: "dropped" })}
+            />
+            <CountChip
+              color={REMAINING_COLOR}
+              label={t("statusToUpdate")}
+              value={last.to_update}
+              urgent
+              onPick={() => onOpen({ season: "to_update" })}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -109,6 +109,7 @@ export const translations = {
     statusToUpdate: "Still to update",
     statusDeleted: "Deleted",
     lgThisSeason: "{n} farmers this season",
+    lgFarmersLabel: "farmers this season",
     clearFilters: "Clear filters",
     chooseGroupToRegister: "Choose the group to register the farmer in",
     chooseGroupOption: "Choose a group...",
@@ -175,6 +176,8 @@ export const translations = {
     lgDone: "{done} of {total} done",
     allUpdatedChip: "All updated ✓",
     heroLabel: "Number of Farmers ({season} season)",
+    dashTitle: "Number of Farmers",
+    dashSeason: "{season} season",
     thisYearTitle: "This season's farmers: {total}",
     thisYearNote:
       "Continued + newly added. Farmers still to update are not included yet.",
@@ -337,6 +340,7 @@ export const translations = {
     statusToUpdate: "अद्ययावत करायचे",
     statusDeleted: "हटवलेले",
     lgThisSeason: "या हंगामातील {n} शेतकरी",
+    lgFarmersLabel: "या हंगामातील शेतकरी",
     clearFilters: "फिल्टर काढा",
     chooseGroupToRegister: "शेतकऱ्याची नोंदणी कोणत्या गटात करायची ते निवडा",
     chooseGroupOption: "गट निवडा...",
@@ -403,6 +407,8 @@ export const translations = {
     lgDone: "{total} पैकी {done} पूर्ण",
     allUpdatedChip: "सर्व अद्ययावत ✓",
     heroLabel: "शेतकऱ्यांची संख्या ({season} हंगाम)",
+    dashTitle: "शेतकऱ्यांची संख्या",
+    dashSeason: "{season} हंगाम",
     thisYearTitle: "या हंगामातील शेतकरी: {total}",
     thisYearNote:
       "सुरू राहिलेले + नवीन जोडलेले. अद्याप अद्ययावत न केलेले शेतकरी यात धरलेले नाहीत.",
