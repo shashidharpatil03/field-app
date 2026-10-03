@@ -6,6 +6,14 @@ import FarmerNav from "./FarmerNav.jsx";
 
 const PAGE_SIZE = 40;
 
+// "2026-27": the season runs from 1 May.
+function seasonLabel() {
+  const today = new Date();
+  const start =
+    today.getMonth() >= 4 ? today.getFullYear() : today.getFullYear() - 1;
+  return `${start}-${String(start + 1).slice(2)}`;
+}
+
 // The four continuity buttons under the search bar, in this order. The
 // value is the "season" filter the server understands.
 const CONTINUITY = [
@@ -39,10 +47,6 @@ function FarmerList({
   const [picking, setPicking] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [localMessage, setLocalMessage] = useState("");
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [history, setHistory] = useState([]);
-  const [draftsOpen, setDraftsOpen] = useState(false);
-  const [drafts, setDrafts] = useState([]);
 
   // ---- choices for the filter drop-downs, taken from the group list ----
   const villages = [];
@@ -91,10 +95,8 @@ function FarmerList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [typed]);
 
-  // Forget the open History / Drafts panels when the group changes.
+  // Forget the "choose a group" box when the group filter changes.
   useEffect(() => {
-    setHistoryOpen(false);
-    setDraftsOpen(false);
     setPicking(false);
   }, [filters.lgId]);
 
@@ -178,59 +180,6 @@ function FarmerList({
     onChanged();
   }
 
-  // ---- History and Drafts of the chosen group ----
-  async function toggleHistory() {
-    if (historyOpen) {
-      setHistoryOpen(false);
-      return;
-    }
-    try {
-      const response = await apiFetch(
-        `http://localhost:8000/lgs/${selectedLg.id}/assignments`,
-      );
-      if (response.ok) {
-        setHistory(await response.json());
-        setHistoryOpen(true);
-      }
-    } catch {
-      setLoadError(true);
-    }
-  }
-
-  async function loadDrafts() {
-    const response = await apiFetch(
-      `http://localhost:8000/lgs/${selectedLg.id}/drafts`,
-    );
-    if (response.ok) {
-      setDrafts(await response.json());
-    }
-  }
-
-  async function toggleDrafts() {
-    if (draftsOpen) {
-      setDraftsOpen(false);
-      return;
-    }
-    try {
-      await loadDrafts();
-      setDraftsOpen(true);
-    } catch {
-      setLoadError(true);
-    }
-  }
-
-  async function deleteDraft(draftId) {
-    try {
-      await apiFetch(`http://localhost:8000/drafts/${draftId}`, {
-        method: "DELETE",
-      });
-      await loadDrafts();
-      onChanged();
-    } catch {
-      setLoadError(true);
-    }
-  }
-
   // ---- registering ----
   function handleRegister() {
     if (selectedLg) {
@@ -265,7 +214,7 @@ function FarmerList({
     filters.villageId !== "" ||
     filters.ffId !== "" ||
     filters.q !== "" ||
-    filters.status !== "continuing" ||
+    filters.status !== "all" ||
     filters.gender !== "" ||
     filters.growing !== "" ||
     filters.water !== "" ||
@@ -285,7 +234,7 @@ function FarmerList({
       lgId: "",
       ffId: "",
       q: "",
-      status: "continuing",
+      status: "all",
       gender: "",
       growing: "",
       water: "",
@@ -293,9 +242,33 @@ function FarmerList({
     });
   }
 
+  // The selected continuity buttons. Several can be on at once; none on
+  // means "All".
+  const selectedKeys =
+    filters.season === ""
+      ? []
+      : filters.season === "this_year"
+        ? ["continued", "new"]
+        : filters.season.split(",");
+  // "Farmers (2026-27)" is the same as Continued + Newly added together.
+  const thisSeasonOn =
+    selectedKeys.length === 2 &&
+    selectedKeys.includes("continued") &&
+    selectedKeys.includes("new");
+
+  function toggleContinuity(value) {
+    const next = selectedKeys.includes(value)
+      ? selectedKeys.filter((k) => k !== value)
+      : [...selectedKeys, value];
+    setFilters({ ...filters, status: "all", season: next.join(",") });
+  }
+
   // The filters that came from tapping a dashboard figure, shown as chips
   // that can each be removed.
   const chips = [];
+  if (selectedLg) {
+    chips.push({ name: "lgId", text: selectedLg.lg_code });
+  }
   if (filters.gender) {
     chips.push({ name: "gender", text: t(`chipGender_${filters.gender}`) });
   }
@@ -307,9 +280,6 @@ function FarmerList({
       name: "water",
       text: t(`chipWater_${filters.water.replace(" ", "_")}`),
     });
-  }
-  if (filters.season === "this_year") {
-    chips.push({ name: "season", text: t(`seasonFilter_${filters.season}`) });
   }
 
   return (
@@ -352,21 +322,41 @@ function FarmerList({
       </div>
 
       <div className="cont-buttons">
+        <button
+          className={`cont-btn all${
+            selectedKeys.length === 0 && filters.status !== "deleted"
+              ? " sel"
+              : ""
+          }`}
+          aria-pressed={selectedKeys.length === 0}
+          disabled={filters.status === "deleted"}
+          onClick={() => setFilters({ ...filters, status: "all", season: "" })}
+        >
+          {t("statusAll")}
+        </button>
+        <button
+          className={`cont-btn all farmers${thisSeasonOn ? " sel" : ""}`}
+          aria-pressed={thisSeasonOn}
+          disabled={filters.status === "deleted"}
+          onClick={() =>
+            setFilters({
+              ...filters,
+              status: "all",
+              season: thisSeasonOn ? "" : "continued,new",
+            })
+          }
+        >
+          {t("farmersSeason", { season: seasonLabel() })}
+        </button>
         {CONTINUITY.map((c) => (
           <button
             key={c.value}
             className={`cont-btn ${c.tone}${
-              filters.season === c.value ? " sel" : ""
-            }`}
-            aria-pressed={filters.season === c.value}
+              selectedKeys.includes(c.value) ? " sel" : ""
+            } k-${c.value}`}
+            aria-pressed={selectedKeys.includes(c.value)}
             disabled={filters.status === "deleted"}
-            onClick={() =>
-              setFilters({
-                ...filters,
-                status: "continuing",
-                season: filters.season === c.value ? "" : c.value,
-              })
-            }
+            onClick={() => toggleContinuity(c.value)}
           >
             {t(c.label)}
           </button>
@@ -442,7 +432,7 @@ function FarmerList({
                 onChange={(e) =>
                   setFilters({
                     ...filters,
-                    status: e.target.checked ? "deleted" : "continuing",
+                    status: e.target.checked ? "deleted" : "all",
                     season: "",
                   })
                 }
@@ -456,61 +446,6 @@ function FarmerList({
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {selectedLg && (
-        <div className="card">
-          <h3>{selectedLg.lg_code}</h3>
-          <p>
-            {selectedLg.village} · {selectedLg.farmer_count} {t("farmers")}
-          </p>
-          <p>
-            {t("facilitator")} {selectedLg.ff_name ?? t("nobodyYet")}
-          </p>
-          <button onClick={toggleHistory}>
-            {historyOpen ? t("hideHistory") : t("history")}
-          </button>
-          {selectedLg.draft_count > 0 && (
-            <button onClick={toggleDrafts}>
-              {draftsOpen
-                ? t("hideDrafts")
-                : t("drafts", { n: selectedLg.draft_count })}
-            </button>
-          )}
-
-          {historyOpen && (
-            <div className="history">
-              {history.map((h) => (
-                <p key={h.id}>
-                  <strong>{h.ff_name}</strong>
-                  <br />
-                  {h.start_date} {t("to")} {h.end_date ?? t("now")}
-                </p>
-              ))}
-            </div>
-          )}
-
-          {draftsOpen && (
-            <ul className="drafts">
-              {drafts.map((d) => (
-                <li key={d.id}>
-                  <strong>{d.name || t("unnamedFarmer")}</strong>
-                  <br />
-                  <small>
-                    {t("saved")} {d.updated_at.replace("T", " ")}
-                  </small>
-                  <br />
-                  <button onClick={() => onRegister(selectedLg, d)}>
-                    {t("continue")}
-                  </button>
-                  <button onClick={() => deleteDraft(d.id)}>
-                    {t("delete")}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       )}
 
@@ -565,14 +500,14 @@ function FarmerList({
       <ul className="farmer-list">
         {items.map((f) => (
           <li className="farmer-row" key={f.id}>
-            <div>
+            <div className={`st-${f.season_status}`}>
               <button
                 className="frow-top"
                 disabled={f.season_status === "deleted"}
                 onClick={() => onOpenFarmer(f.id)}
               >
-                <strong>{f.name}</strong>
                 <span className="frow-code">{f.farmer_code}</span>
+                <strong>{f.name}</strong>
               </button>
               <div className="frow-bottom">
                 <button

@@ -12,6 +12,8 @@ from demo_data import (
 )
 from users_seed import create_users_table, seed_users
 
+from audit_table import ACTIVITY_LOG_SQL
+from change_time import CHANGE_TIME_TRIGGER_SQL
 from deleted_table import DELETED_FARMERS_SQL
 
 random.seed(42)
@@ -108,6 +110,7 @@ cursor.execute("""
             OR water_regime IN ('Rainfed', 'Partially irrigated', 'Fully irrigated')
         ),
         registered_on TEXT,
+        registered_by INTEGER,
         UNIQUE (lg_id, farmer_number)
     )
 """)
@@ -136,9 +139,15 @@ cursor.execute("""
         old_value TEXT NOT NULL,
         new_value TEXT NOT NULL,
         changed_on TEXT NOT NULL,
-        reason TEXT NOT NULL DEFAULT ''
+        reason TEXT NOT NULL DEFAULT '',
+        changed_at TEXT,
+        changed_by INTEGER
     )
 """)
+
+cursor.execute(CHANGE_TIME_TRIGGER_SQL)
+cursor.execute("DROP TABLE IF EXISTS activity_log")
+cursor.execute(ACTIVITY_LOG_SQL)
 
 cursor.execute(DELETED_FARMERS_SQL)
 

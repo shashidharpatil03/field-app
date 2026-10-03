@@ -108,8 +108,10 @@ function FarmerSummary({ data, onOpen }) {
 
   return (
     <div>
-      <h2 className="section-h">{t("thisYearTitle", { total: year.total })}</h2>
-      <p className="section-note">{t("thisYearNote")}</p>
+      <h2 className="section-h">
+        {t("thisYearTitle", { season: data.season?.label ?? "" })}
+      </h2>
+      <p className="section-note">{t("thisYearNote", { total: year.total })}</p>
 
       <ChartCard
         title={t("chartGrowing")}

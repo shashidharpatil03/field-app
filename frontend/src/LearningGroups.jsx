@@ -6,6 +6,7 @@ import {
   REMAINING_COLOR,
 } from "./ProgressTracker.jsx";
 import CountChip from "./CountChip.jsx";
+import { ChevronRightIcon } from "./icons.jsx";
 import { useT } from "./i18n.jsx";
 import { formatWhen } from "./offline.js";
 
@@ -59,30 +60,42 @@ function LearningGroups({ lgs, isManager, savedCopyFrom, nav, onOpen }) {
             typeof lg.to_update_count === "number";
           return (
             <li key={lg.id}>
-              <div className="lgc">
-                <button className="lgc-main" onClick={() => onOpen(lg)}>
-                  <span className="lgc-text">
-                    <span className="lgc-code">{lg.lg_code}</span>
-                    <span className="lgc-sub">
-                      {lg.village}
-                      {isManager && (
-                        <span>
-                          <span className="lgc-sep"> | </span>
-                          {lg.ff_name ?? t("nobodyYet")}
-                        </span>
-                      )}
+              <div className="lgc lgc-click" onClick={() => onOpen(lg)}>
+                <div className="lgc-top">
+                  <button className="lgc-main">
+                    <span className="lgc-text">
+                      <span className="lgc-code">{lg.lg_code}</span>
+                      <span className="lgc-sub">
+                        {lg.village}
+                        {isManager && (
+                          <span>
+                            <span className="lgc-sep"> | </span>
+                            {lg.ff_name ?? t("nobodyYet")}
+                          </span>
+                        )}
+                      </span>
                     </span>
-                  </span>
+                  </button>
                   {hasSeason && (
-                    <span className="lgc-total">
-                      <span className="lgc-number">{lg.season_farmers}</span>
+                    <button
+                      className="lgc-total lgc-total-btn"
+                      aria-label={`${lg.season_farmers} ${t("lgFarmersLabel")}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpen(lg, { season: "this_year" });
+                      }}
+                    >
+                      <span className="lgc-number-row">
+                        <span className="lgc-number">{lg.season_farmers}</span>
+                        <ChevronRightIcon />
+                      </span>
                       <span className="lgc-caption">{t("lgFarmersLabel")}</span>
-                    </span>
+                    </button>
                   )}
-                </button>
+                </div>
 
                 {hasSeason && (
-                  <div>
+                  <div onClick={(e) => e.stopPropagation()}>
                     <div className="lgc-band">
                       <CountChip
                         color={DONE_COLOR}

@@ -8,6 +8,10 @@ import FarmerData from "./FarmerData.jsx";
 import ComingSoon from "./ComingSoon.jsx";
 import PuManagement from "./PuManagement.jsx";
 import SyncScreen from "./SyncScreen.jsx";
+import Sent from "./Sent.jsx";
+import Incomplete from "./Incomplete.jsx";
+import FarmerProfile from "./FarmerProfile.jsx";
+import RegisterFarmer from "./RegisterFarmer.jsx";
 
 // Remember the signed-in user and language when the page is refreshed.
 function readSaved(key) {
@@ -42,6 +46,9 @@ function App() {
     readSaved("lang") === "mr" ? "mr" : "en",
   );
   const [module, setModule] = useState(null);
+  // A farmer opened from Sent, or a draft opened from Incomplete.
+  const [profileId, setProfileId] = useState(null);
+  const [resume, setResume] = useState(null);
 
   function setLang(value) {
     setLangState(value);
@@ -77,6 +84,43 @@ function App() {
       content = <FarmerData user={user} onHome={() => setModule(null)} />;
     } else if (module === "pu" && user.role === "pu_manager") {
       content = <PuManagement onHome={() => setModule(null)} />;
+    } else if (module === "sent" && profileId !== null) {
+      content = (
+        <div className="page">
+          <FarmerProfile
+            farmerId={profileId}
+            onBack={() => setProfileId(null)}
+            onDeleted={() => setProfileId(null)}
+          />
+        </div>
+      );
+    } else if (module === "sent") {
+      content = (
+        <Sent
+          onHome={() => setModule(null)}
+          onOpenFarmer={(id) => setProfileId(id)}
+          isManager={user.role === "pu_manager"}
+        />
+      );
+    } else if (module === "incomplete" && resume !== null) {
+      content = (
+        <div className="page">
+          <RegisterFarmer
+            lgId={resume.lg_id}
+            lgCode={resume.lg_code}
+            draft={resume}
+            onBack={() => setResume(null)}
+            onDone={() => setResume(null)}
+          />
+        </div>
+      );
+    } else if (module === "incomplete") {
+      content = (
+        <Incomplete
+          onHome={() => setModule(null)}
+          onContinue={(draft) => setResume(draft)}
+        />
+      );
     } else if (module === "sync") {
       content = <SyncScreen onHome={() => setModule(null)} />;
     } else {

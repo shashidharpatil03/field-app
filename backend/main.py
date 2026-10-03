@@ -68,6 +68,16 @@ def require_manager(user):
         fail(None, 403, "Only the PU manager can do this")
 
 
+def log_activity(connection, user, action, detail=""):
+    """The audit trail: every change to the data records who made it and
+    when. Called just before the change is committed."""
+    connection.execute(
+        "INSERT INTO activity_log (at, user_id, user_name, action, detail) "
+        "VALUES (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?, ?, ?, ?)",
+        (user["id"], user["name"], action, detail),
+    )
+
+
 def lg_access(connection, user, lg_id):
     """None if the group does not exist, otherwise True or False."""
     row = connection.execute(
@@ -386,6 +396,7 @@ def reassign_lg(
         "INSERT INTO assignments (lg_id, ff_id, start_date) VALUES (?, ?, ?)",
         (lg_id, body.new_ff_id, today),
     )
+    log_activity(connection, user, "Group moved", f"Group {lg_id} to facilitator {body.new_ff_id}")
     connection.commit()
     connection.close()
     return {"message": "Moved"}
@@ -539,8 +550,15 @@ def search_farmers(
         fail(None, 400, "Unknown value for growing")
     if water is not None and water not in WATER_CHOICES + ["none"]:
         fail(None, 400, "Unknown water regime")
-    if season not in (None, "new", "continued", "dropped", "to_update", "this_year"):
-        fail(None, 400, "Unknown season filter")
+    # One or several continuity values, e.g. "continued,to_update".
+    season_keys = [part for part in (season or "").split(",") if part != ""]
+    for key in season_keys:
+        if key not in ("new", "continued", "dropped", "to_update", "this_year"):
+            fail(None, 400, "Unknown season filter")
+    if season_keys:
+        season = ",".join(season_keys)
+    else:
+        season = None
     limit = max(1, min(limit, 100))
     offset = max(0, offset)
 
@@ -575,11 +593,12 @@ def search_farmers(
         values.append(water)
     if season is not None:
         # The season filters already say who is still in or out.
-        sql, season_values = season_sql(season_start(date.today()).isoformat())[
-            season
-        ]
-        conditions.append(sql)
-        values.extend(season_values)
+        parts = season_sql(season_start(date.today()).isoformat())
+        pieces = []
+        for key in season_keys:
+            pieces.append(f"({parts[key][0]})")
+            values.extend(parts[key][1])
+        conditions.append("(" + " OR ".join(pieces) + ")")
     elif status != "all":
         conditions.append("farmers.participation = ?")
         values.append(status)
@@ -789,6 +808,9 @@ def get_farmer(farmer_id: int, user: dict = Depends(current_user)):
             farmers.area_under_cotton,
             farmers.water_regime,
             farmers.registered_on,
+            (SELECT app_users.name FROM app_users
+              WHERE app_users.id = farmers.registered_by)
+                AS registered_by_name,
             villages.name AS village,
             pus.name AS pu_name,
             facilitators.name AS ff_name
@@ -897,6 +919,108 @@ def mobile_owner(connection, user, mobile, except_farmer_id=0):
     return "This mobile number is already used by another farmer"
 
 
+@app.get("/drafts")
+def all_my_drafts(user: dict = Depends(current_user)):
+    """Every unfinished form this person can see, newest first."""
+    connection = sqlite3.connect("field.db")
+    connection.row_factory = sqlite3.Row
+    rows = connection.execute(
+        """
+        SELECT farmer_drafts.id, farmer_drafts.lg_id, farmer_drafts.name,
+               farmer_drafts.gender, farmer_drafts.growing_cotton,
+               farmer_drafts.mobile, farmer_drafts.total_landholding,
+               farmer_drafts.area_under_cotton, farmer_drafts.water_regime,
+               farmer_drafts.confirmed_large, farmer_drafts.updated_at,
+               pus.code || '-' || printf('%03d', learning_groups.lg_number)
+                   AS lg_code,
+               villages.name AS village
+        FROM farmer_drafts
+        JOIN learning_groups ON learning_groups.id = farmer_drafts.lg_id
+        JOIN pus ON pus.id = learning_groups.pu_id
+        JOIN villages ON villages.id = learning_groups.village_id
+        LEFT JOIN assignments
+            ON assignments.lg_id = farmer_drafts.lg_id
+            AND assignments.end_date IS NULL
+        WHERE ((? = 'pu_manager' AND learning_groups.pu_id = ?)
+            OR (? = 'facilitator' AND assignments.ff_id = ?))
+        ORDER BY farmer_drafts.updated_at DESC, farmer_drafts.id DESC
+        """,
+        [user["role"], user["pu_id"], user["role"], user["ff_id"]],
+    ).fetchall()
+    connection.close()
+    return [dict(row) for row in rows]
+
+
+@app.get("/sent")
+def sent_updates(user: dict = Depends(current_user)):
+    """The forms submitted this season, newest first: one entry per farmer
+    per day (an update or a registration), with who did it and when. A
+    manager sees the whole PU, a facilitator only their own."""
+    start = season_start(date.today()).isoformat()
+    status_sql = season_sql(start)
+    status_values = []
+    for key in ("new", "continued", "dropped", "to_update"):
+        status_values.extend(status_sql[key][1])
+    connection = sqlite3.connect("field.db")
+    connection.row_factory = sqlite3.Row
+    rows = connection.execute(
+        f"""
+        WITH events AS (
+            SELECT l.farmer_id, l.changed_on AS day, l.changed_at AS at,
+                   l.changed_by AS by_id
+            FROM farmer_change_log l
+            WHERE l.id IN (
+                SELECT MAX(r.id) FROM farmer_change_log r
+                WHERE r.changed_on >= ?
+                  AND r.reason NOT LIKE 'Learning group%'
+                GROUP BY r.farmer_id, r.changed_on)
+            UNION ALL
+            SELECT f.id, f.registered_on, NULL, f.registered_by
+            FROM farmers f
+            WHERE f.registered_on >= ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM farmer_change_log r
+                  WHERE r.farmer_id = f.id AND r.changed_on = f.registered_on
+                    AND r.reason NOT LIKE 'Learning group%')
+        )
+        SELECT
+            farmers.id,
+            {FARMER_CODE_SQL} AS farmer_code,
+            farmers.name,
+            villages.name AS village,
+            events.day AS sent_on,
+            events.at AS sent_at,
+            (SELECT app_users.name FROM app_users
+              WHERE app_users.id = events.by_id) AS by_name,
+            CASE
+                WHEN {status_sql["new"][0]} THEN 'new'
+                WHEN {status_sql["continued"][0]} THEN 'continued'
+                WHEN {status_sql["dropped"][0]} THEN 'dropped'
+                WHEN {status_sql["to_update"][0]} THEN 'to_update'
+                ELSE 'none'
+            END AS season_status
+        FROM events
+        JOIN farmers ON farmers.id = events.farmer_id
+        JOIN learning_groups ON learning_groups.id = farmers.lg_id
+        JOIN pus ON pus.id = learning_groups.pu_id
+        JOIN villages ON villages.id = learning_groups.village_id
+        LEFT JOIN assignments
+            ON assignments.lg_id = farmers.lg_id
+            AND assignments.end_date IS NULL
+        WHERE ((? = 'pu_manager' AND learning_groups.pu_id = ?)
+            OR (? = 'facilitator' AND assignments.ff_id = ?
+                AND (events.by_id IS NULL OR events.by_id = ?)))
+        ORDER BY events.day DESC, COALESCE(events.at, '') DESC, farmers.id DESC
+        LIMIT 500
+        """,
+        [start, start]
+        + status_values
+        + [user["role"], user["pu_id"], user["role"], user["ff_id"], user["id"]],
+    ).fetchall()
+    connection.close()
+    return [dict(row) for row in rows]
+
+
 @app.get("/lgs/{lg_id}/drafts")
 def list_drafts(lg_id: int, user: dict = Depends(current_user)):
     connection = sqlite3.connect("field.db")
@@ -945,6 +1069,7 @@ def create_draft(lg_id: int, body: DraftBody, user: dict = Depends(current_user)
          datetime.now().isoformat(timespec="seconds")),
     )
     new_id = cursor.lastrowid
+    log_activity(connection, user, "Draft saved", f"Group {lg_id}")
     connection.commit()
     connection.close()
     return {"id": new_id}
@@ -977,6 +1102,7 @@ def update_draft(draft_id: int, body: DraftBody, user: dict = Depends(current_us
          int(body.confirmed_large),
          datetime.now().isoformat(timespec="seconds"), draft_id),
     )
+    log_activity(connection, user, "Draft changed", f"Draft {draft_id}")
     connection.commit()
     changed = cursor.rowcount
     connection.close()
@@ -992,6 +1118,7 @@ def delete_draft(draft_id: int, user: dict = Depends(current_user)):
     cursor = connection.execute(
         "DELETE FROM farmer_drafts WHERE id = ?", (draft_id,)
     )
+    log_activity(connection, user, "Draft deleted", f"Draft {draft_id}")
     connection.commit()
     changed = cursor.rowcount
     connection.close()
@@ -1050,11 +1177,12 @@ def submit_draft(draft_id: int, user: dict = Depends(current_user)):
             INSERT INTO farmers
                 (lg_id, farmer_number, name, gender, growing_cotton, mobile,
                  total_landholding, area_under_cotton, water_regime,
-                 registered_on)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 registered_on, registered_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (lg_id, number, name, gender, growing, mobile or None,
-             round(total, 2), cotton, water, date.today().isoformat()),
+             round(total, 2), cotton, water, date.today().isoformat(),
+             user["id"]),
         )
     except sqlite3.IntegrityError:
         # Two people saved the same mobile at the same moment: undo everything.
@@ -1066,6 +1194,7 @@ def submit_draft(draft_id: int, user: dict = Depends(current_user)):
         )
     new_id = cursor.lastrowid
     connection.execute("DELETE FROM farmer_drafts WHERE id = ?", (draft_id,))
+    log_activity(connection, user, "Farmer registered", f"Farmer {new_id}, group {lg_id}")
     connection.commit()
 
     code = connection.execute(
@@ -1200,10 +1329,12 @@ def edit_farmer(
         connection.execute(
             """
             INSERT INTO farmer_change_log
-                (farmer_id, field, old_value, new_value, changed_on, reason)
-            VALUES (?, ?, ?, ?, ?, ?)
+                (farmer_id, field, old_value, new_value, changed_on, reason,
+                 changed_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (farmer_id, field, old_value, new_value, today, reason),
+            (farmer_id, field, old_value, new_value, today, reason,
+             user["id"]),
         )
     if status_changed:
         connection.execute(
@@ -1213,12 +1344,13 @@ def edit_farmer(
         connection.execute(
             """
             INSERT INTO farmer_change_log
-                (farmer_id, field, old_value, new_value, changed_on, reason)
-            VALUES (?, 'Participation', ?, ?, ?, ?)
+                (farmer_id, field, old_value, new_value, changed_on, reason,
+                 changed_by)
+            VALUES (?, 'Participation', ?, ?, ?, ?, ?)
             """,
             (farmer_id, PARTICIPATION_LABELS[old[7]],
              PARTICIPATION_LABELS[new_status], today,
-             build_reason(new_status, body.drop_reason, reason)),
+             build_reason(new_status, body.drop_reason, reason), user["id"]),
         )
         if new_status == "continuing" and not changes:
             # Bringing a farmer back with details unchanged still counts as
@@ -1226,11 +1358,13 @@ def edit_farmer(
             connection.execute(
                 """
                 INSERT INTO farmer_change_log
-                    (farmer_id, field, old_value, new_value, changed_on, reason)
-                VALUES (?, 'Confirmed', '', 'Details confirmed', ?, '')
+                    (farmer_id, field, old_value, new_value, changed_on, reason,
+                     changed_by)
+                VALUES (?, 'Confirmed', '', 'Details confirmed', ?, '', ?)
                 """,
-                (farmer_id, today),
+                (farmer_id, today, user["id"]),
             )
+    log_activity(connection, user, "Farmer edited", f"Farmer {farmer_id}")
     connection.commit()
     connection.close()
     return {"message": "Saved"}
@@ -1260,11 +1394,13 @@ def confirm_farmer(farmer_id: int, user: dict = Depends(current_user)):
     connection.execute(
         """
         INSERT INTO farmer_change_log
-            (farmer_id, field, old_value, new_value, changed_on, reason)
-        VALUES (?, 'Confirmed', '', 'Details confirmed', ?, '')
+            (farmer_id, field, old_value, new_value, changed_on, reason,
+             changed_by)
+        VALUES (?, 'Confirmed', '', 'Details confirmed', ?, '', ?)
         """,
-        (farmer_id, date.today().isoformat()),
+        (farmer_id, date.today().isoformat(), user["id"]),
     )
+    log_activity(connection, user, "Farmer confirmed", f"Farmer {farmer_id}")
     connection.commit()
     connection.close()
     return {"message": "Confirmed"}
@@ -1277,7 +1413,10 @@ def farmer_changes(farmer_id: int, user: dict = Depends(current_user)):
     require_farmer(connection, user, farmer_id)
     rows = connection.execute(
         """
-        SELECT id, field, old_value, new_value, changed_on, reason
+        SELECT id, field, old_value, new_value, changed_on, changed_at, reason,
+               (SELECT app_users.name FROM app_users
+                 WHERE app_users.id = farmer_change_log.changed_by)
+                   AS changed_by_name
         FROM farmer_change_log
         WHERE farmer_id = ?
         ORDER BY id DESC
@@ -1381,6 +1520,7 @@ def delete_farmer(
         "DELETE FROM farmer_change_log WHERE farmer_id = ?", (farmer_id,)
     )
     connection.execute("DELETE FROM farmers WHERE id = ?", (farmer_id,))
+    log_activity(connection, user, "Farmer deleted", f"Farmer {farmer_id}, {row[0]}")
     connection.commit()
     connection.close()
     return {"message": "Deleted", "farmer_code": row[0]}
@@ -1502,6 +1642,7 @@ def add_lg(body: NewLg, user: dict = Depends(current_user)):
         "SELECT pus.code || '-' || printf('%03d', ?) FROM pus WHERE id = ?",
         (number, user["pu_id"]),
     ).fetchone()[0]
+    log_activity(connection, user, "Group created", f"Group {code}")
     connection.commit()
     connection.close()
     return {"id": lg_id, "lg_code": code}
@@ -1566,15 +1707,17 @@ def drop_lg(lg_id: int, body: LgReason, user: dict = Depends(current_user)):
         connection.execute(
             """
             INSERT INTO farmer_change_log
-                (farmer_id, field, old_value, new_value, changed_on, reason)
-            VALUES (?, 'Participation', 'Continuing', 'Dropped out', ?, ?)
+                (farmer_id, field, old_value, new_value, changed_on, reason,
+                 changed_by)
+            VALUES (?, 'Participation', 'Continuing', 'Dropped out', ?, ?, ?)
             """,
-            (farmer_id, today, reason),
+            (farmer_id, today, reason, user["id"]),
         )
     connection.execute(
         "UPDATE learning_groups SET dropped_on = ?, drop_reason = ? WHERE id = ?",
         (today, f"{body.reason}" + (f" - {note}" if note else ""), lg_id),
     )
+    log_activity(connection, user, "Group dropped", f"Group {lg_id}, {len(farmers)} farmers dropped")
     connection.commit()
     connection.close()
     return {"message": "Dropped", "farmers_dropped": len(farmers)}
@@ -1645,17 +1788,19 @@ def restore_lg(lg_id: int, user: dict = Depends(current_user)):
         connection.execute(
             """
             INSERT INTO farmer_change_log
-                (farmer_id, field, old_value, new_value, changed_on, reason)
+                (farmer_id, field, old_value, new_value, changed_on, reason,
+                 changed_by)
             VALUES (?, 'Participation', 'Dropped out', 'Continuing', ?,
-                    'Learning group brought back')
+                    'Learning group brought back', ?)
             """,
-            (farmer_id, today),
+            (farmer_id, today, user["id"]),
         )
     connection.execute(
         "UPDATE learning_groups SET dropped_on = NULL, drop_reason = NULL "
         "WHERE id = ?",
         (lg_id,),
     )
+    log_activity(connection, user, "Group brought back", f"Group {lg_id}, {len(farmers)} farmers restored")
     connection.commit()
     connection.close()
     return {"message": "Brought back", "farmers_restored": len(farmers)}
@@ -1710,6 +1855,7 @@ def delete_lg(lg_id: int, user: dict = Depends(current_user)):
     connection.execute("DELETE FROM farmer_drafts WHERE lg_id = ?", (lg_id,))
     connection.execute("DELETE FROM assignments WHERE lg_id = ?", (lg_id,))
     connection.execute("DELETE FROM learning_groups WHERE id = ?", (lg_id,))
+    log_activity(connection, user, "Group deleted", f"Group {code}")
     connection.commit()
     connection.close()
     return {"message": "Deleted", "lg_code": code}
@@ -1784,6 +1930,7 @@ def bulk_reassign(body: BulkReassign, user: dict = Depends(current_user)):
             "INSERT INTO assignments (lg_id, ff_id, start_date) VALUES (?, ?, ?)",
             (lg_id, ff[0], today),
         )
+    log_activity(connection, user, "Groups moved", f"{len(to_move)} groups to facilitator {ff[0]}")
     connection.commit()
     connection.close()
     return {"moved": len(to_move), "skipped": len(ids) - len(to_move)}
@@ -1931,6 +2078,7 @@ def add_facilitator(body: NewFacilitator, user: dict = Depends(current_user)):
         "VALUES (?, 'facilitator', ?, ?)",
         (name, user["pu_id"], ff_id),
     )
+    log_activity(connection, user, "Facilitator added", f"Facilitator {ff_id}, {name}")
     connection.commit()
     connection.close()
     return {"id": ff_id}
@@ -2017,6 +2165,7 @@ def facilitator_leaves(
         "UPDATE facilitators SET active = 0, left_on = ? WHERE id = ?",
         (today, ff_id),
     )
+    log_activity(connection, user, "Facilitator left", f"Facilitator {ff_id}, {len(chosen)} groups moved")
     connection.commit()
     connection.close()
     return {"moved": len(chosen)}

@@ -16,7 +16,7 @@
 
   /* How the app uses them. Text is Deep Blue (13:1 on Fibre), buttons are
      Deep Green, headings a darker Soil so they stay readable in sunlight. */
-  --bg: var(--fibre);
+  --bg: #fbfaf6;
   --card: #ffffff;
   --text: var(--deep-blue);
   --muted: #4a5d70;
@@ -1965,4 +1965,299 @@ button.danger.solid {
   border-width: 1.5px;
   font-size: 14px;
   letter-spacing: 0;
+}
+
+/* ---- LG card: tap anywhere for all farmers; number + arrow for this season ---- */
+.lgc-click {
+  cursor: pointer;
+}
+
+.lgc-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.lgc-top .lgc-main {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+
+button.lgc-total-btn {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.lgc-number-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--deep-green);
+}
+
+/* ---- farmer rows: shadow and a coloured bar on the left edge ---- */
+.farmer-row > div {
+  position: relative;
+  padding-left: 18px;
+  overflow: hidden;
+  box-shadow: 3px 4px 8px rgba(15, 43, 64, 0.16);
+}
+
+.farmer-row > div::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  background: var(--border-soft);
+}
+
+.farmer-row > div.st-new::before,
+.farmer-row > div.st-continued::before {
+  background: #14694a;
+}
+
+.farmer-row > div.st-to_update::before {
+  background: #a31515;
+}
+
+.farmer-row > div.st-dropped::before {
+  background: #8a7a66;
+}
+
+.frow-top strong,
+.frow-code {
+  font-size: 16px;
+}
+
+.frow-code {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.cont-buttons {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.cont-btn.all {
+  grid-column: span 3;
+  background: #e6e2d6;
+  border-color: #e6e2d6;
+  color: #3b372c;
+}
+
+.cont-btn.all.sel {
+  background: #3b372c;
+  border-color: #231f17;
+  color: #fff;
+  font-weight: 700;
+}
+
+.cont-btn.k-continued,
+.cont-btn.k-new,
+.cont-btn.k-dropped,
+.cont-btn.k-to_update {
+  grid-column: span 3;
+}
+
+.cont-btn.all.farmers {
+  background: #cfe9dc;
+  border-color: #cfe9dc;
+  color: #2f7a58;
+}
+
+.cont-btn.all.farmers.sel {
+  background: #14694a;
+  border-color: #0d4a34;
+  color: #fff;
+}
+
+/* ---- Home: Sent and Incomplete tiles, and their screens ---- */
+.menu-tile {
+  position: relative;
+}
+
+.menu-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.tile-sent {
+  background: linear-gradient(160deg, #ffffff 45%, #d7efe6);
+}
+
+.tile-sent .menu-icon {
+  background: linear-gradient(135deg, #2a9d8f, var(--deep-green));
+  color: #fff;
+}
+
+.tile-incomplete {
+  background: linear-gradient(160deg, #ffffff 45%, #fbe9c9);
+}
+
+.tile-incomplete .menu-icon {
+  background: linear-gradient(135deg, #e0a33a, #a8680b);
+  color: #fff;
+}
+
+.day-heading {
+  margin: 14px 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.farmer-row > div.st-draft::before {
+  background: #e0a33a;
+}
+
+.frow-top.static {
+  cursor: default;
+}
+
+.frow-bottom.wrap {
+  flex-wrap: wrap;
+}
+
+.draft-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.draft-actions button {
+  min-height: 40px;
+  margin: 0;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.draft-actions .danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.frow-village {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.draft-actions button {
+  white-space: nowrap;
+  padding: 0 10px;
+}
+
+.tile-sync {
+  background: linear-gradient(160deg, #ffffff 45%, #dfe8f6);
+}
+
+.tile-sync .menu-icon {
+  background: linear-gradient(135deg, var(--mid-blue), var(--deep-blue));
+  color: #fff;
+}
+
+.sent-summary {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+
+.sent-summary span {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #cfe9dc;
+  color: #2f7a58;
+  font-size: 14px;
+}
+
+.sent-summary b {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--deep-green);
+}
+
+.seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.seg button {
+  min-height: 40px;
+  margin: 0;
+  border-radius: 999px;
+  font-weight: 400;
+}
+
+.seg button.on {
+  background: var(--deep-green);
+  border-color: var(--deep-green);
+  color: #fff;
+  font-weight: 700;
+}
+
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  margin: 10px 0 4px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: #e6e2d6;
+  border-color: #e6e2d6;
+  color: var(--text);
+  text-align: left;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.group-head > span:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.group-count {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #14694a;
+  color: #fff;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.frow-bottom .badge {
+  flex: none;
+  white-space: nowrap;
+}
+
+.frow-bottom .frow-village {
+  min-width: 0;
 }

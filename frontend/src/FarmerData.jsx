@@ -12,7 +12,7 @@ const NO_FILTERS = {
   lgId: "",
   ffId: "",
   q: "",
-  status: "continuing",
+  status: "all",
   gender: "",
   growing: "",
   water: "",

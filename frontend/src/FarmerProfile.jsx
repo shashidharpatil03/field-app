@@ -181,6 +181,7 @@ function FarmerProfile({ farmerId, onBack, onDeleted }) {
           <span className="label">Registered on</span>
           <span className="value">
             {farmer.registered_on ?? "Not recorded"}
+            {farmer.registered_by_name && ` · by ${farmer.registered_by_name}`}
           </span>
         </div>
         <div className="profile-row">
@@ -234,6 +235,7 @@ function FarmerProfile({ farmerId, onBack, onDeleted }) {
               <br />
               <small>
                 {c.changed_on}
+                {c.changed_by_name && ` · by ${c.changed_by_name}`}
                 {c.reason && ` · ${c.reason}`}
               </small>
             </p>

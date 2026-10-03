@@ -26,6 +26,9 @@ function ManageLgs({ lgs, ffs, onChanged }) {
   const [note, setNote] = useState("");
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  // The facilitator history of one group, opened with the History button.
+  const [historyId, setHistoryId] = useState(null);
+  const [history, setHistory] = useState([]);
 
   useEffect(() => {
     apiFetch("http://localhost:8000/pu/villages")
@@ -35,6 +38,24 @@ function ManageLgs({ lgs, ffs, onChanged }) {
       .then((response) => response.json())
       .then((data) => setDropped(data));
   }, [lgs]);
+
+  async function toggleHistory(lg) {
+    if (historyId === lg.id) {
+      setHistoryId(null);
+      return;
+    }
+    try {
+      const response = await apiFetch(
+        `http://localhost:8000/lgs/${lg.id}/assignments`,
+      );
+      if (response.ok) {
+        setHistory(await response.json());
+        setHistoryId(lg.id);
+      }
+    } catch {
+      setErrors({ form: t("serverError") });
+    }
+  }
 
   function closeAll() {
     setAdding(false);
@@ -279,6 +300,9 @@ function ManageLgs({ lgs, ffs, onChanged }) {
             {t("farmersCount", { n: lg.farmer_count })} ·{" "}
             {lg.ff_name ?? t("nobodyYet")}
           </p>
+          <button onClick={() => toggleHistory(lg)}>
+            {historyId === lg.id ? t("hideHistory") : t("history")}
+          </button>
           {lg.can_delete ? (
             <button
               className="danger"
@@ -293,6 +317,17 @@ function ManageLgs({ lgs, ffs, onChanged }) {
             >
               {t("lgDrop")}
             </button>
+          )}
+          {historyId === lg.id && (
+            <div className="history">
+              {history.map((h) => (
+                <p key={h.id}>
+                  <strong>{h.ff_name}</strong>
+                  <br />
+                  {h.start_date} {t("to")} {h.end_date ?? t("now")}
+                </p>
+              ))}
+            </div>
           )}
         </div>
       ))}
