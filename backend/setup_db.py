@@ -196,13 +196,33 @@ assignments = [
 first_names = ["Ramesh", "Suresh", "Lakshmi", "Sunita", "Mahesh", "Anita",
                "Ganesh", "Kavita", "Prakash", "Meena", "Vijay", "Shobha"]
 last_names = ["Patil", "Jadhav", "Shinde", "Pawar", "Kale", "More", "Gaikwad"]
+# Middle names are usually the father's first name. All made up.
+middle_names = ["Dnyaneshwar", "Bhaskar", "Raghunath", "Shivaji", "Namdev",
+                "Balu", "Sambhaji", "Dattatray", "Eknath", "Tukaram",
+                "Madhav", "Vitthal"]
+used_mobiles = set()
+
+
+def random_mobile():
+    """A made-up 10 digit number that no other farmer has."""
+    while True:
+        number = random.choice("6789") + "".join(
+            random.choice("0123456789") for _ in range(9)
+        )
+        if number not in used_mobiles:
+            used_mobiles.add(number)
+            return number
+
 
 farmers = []
 for lg_id in range(1, len(groups) + 1):
     for number in range(1, 36):
         first_name = random.choice(first_names)
+        middle_name = random.choice(middle_names)
         last_name = random.choice(last_names)
-        name = first_name + " " + last_name
+        name = first_name + " " + middle_name + " " + last_name
+        # Almost every farmer has a phone number; a few do not.
+        mobile = random_mobile() if random.random() < 0.95 else None
         gender = random.choice(["Female", "Male"])
         growing_cotton = 1 if random.random() < 0.9 else 0
         participation = "dropped_out" if number % 8 == 0 else "continuing"
@@ -213,9 +233,9 @@ for lg_id in range(1, len(groups) + 1):
             while registered_on >= season_start(date.today()).isoformat():
                 registered_on = demo_registered_on(random, date.today())
         farmers.append(
-            (lg_id, number, name, first_name, last_name, gender,
+            (lg_id, number, name, first_name, middle_name, last_name, gender,
              growing_cotton, participation,
-             total, cotton, water, registered_on)
+             total, cotton, water, registered_on, mobile)
         )
 
 cursor.executemany("INSERT INTO pus (code, name) VALUES (?, ?)", pus)
@@ -234,10 +254,11 @@ cursor.executemany(
 cursor.executemany(
     """
     INSERT INTO farmers
-        (lg_id, farmer_number, name, first_name, last_name, gender,
-         growing_cotton, participation,
-         total_landholding, area_under_cotton, water_regime, registered_on)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (lg_id, farmer_number, name, first_name, middle_name, last_name,
+         gender, growing_cotton, participation,
+         total_landholding, area_under_cotton, water_regime, registered_on,
+         mobile)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """,
     farmers,
 )

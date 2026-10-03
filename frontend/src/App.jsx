@@ -124,11 +124,22 @@ function App() {
     } else if (module === "sync") {
       content = <SyncScreen onHome={() => setModule(null)} />;
     } else {
-      content = <ComingSoon onHome={() => setModule(null)} />;
+      content = (
+        <ComingSoon
+          onHome={() => setModule(null)}
+          titleKey={`menu_${module}`}
+        />
+      );
     }
     screen = (
       <div>
-        <TopBar user={user} titleKey={module ? `menu_${module}` : null} />
+        {module === null && (
+          <TopBar
+            user={user}
+            titleKey={null}
+            onOpenSync={() => setModule("sync")}
+          />
+        )}
         {content}
       </div>
     );

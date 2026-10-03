@@ -1,13 +1,12 @@
 import { useT } from "./i18n.jsx";
+import ModuleHeader from "./ModuleHeader.jsx";
 
-function ComingSoon({ onHome }) {
+function ComingSoon({ onHome, titleKey }) {
   const t = useT();
 
   return (
     <div className="page">
-      <button className="home-button" onClick={onHome}>
-        ← {t("back")}
-      </button>
+      <ModuleHeader titleKey={titleKey} onBack={onHome} />
       <p className="message">{t("comingSoon")}</p>
     </div>
   );

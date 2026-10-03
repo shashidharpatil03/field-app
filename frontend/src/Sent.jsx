@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import ModuleHeader from "./ModuleHeader.jsx";
 import { useT } from "./i18n.jsx";
 import { apiFetch } from "./api.js";
 import {
@@ -79,9 +80,7 @@ function Sent({ onHome, onOpenFarmer, isManager }) {
 
   return (
     <div className="page">
-      <button className="home-button" onClick={onHome}>
-        ← {t("back")}
-      </button>
+      <ModuleHeader titleKey="menu_sent" onBack={onHome} />
       <p className="section-note">{t("sentNote")}</p>
 
       {error && <p className="offline-note">{t("listOffline")}</p>}

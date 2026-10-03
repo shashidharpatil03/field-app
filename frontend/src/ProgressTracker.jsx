@@ -2,8 +2,8 @@ import { useT } from "./i18n.jsx";
 import StackedBar from "./StackedBar.jsx";
 import PartChips from "./PartChips.jsx";
 
-export const DONE_COLOR = "#14694a";
-export const DROPPED_COLOR = "#dbbf9e";
+export const DONE_COLOR = "#0a7a6c";
+export const DROPPED_COLOR = "#c9d8d4";
 // Still to update is the red one: those are the farmers who need attention.
 export const REMAINING_COLOR = "#a31515";
 
@@ -22,8 +22,8 @@ export function barParts(continued, dropped, toUpdate) {
       key: "dropped",
       value: dropped,
       color: DROPPED_COLOR,
-      textColor: "#3a2a10",
-      callColor: "#6b4a14",
+      textColor: "#10332e",
+      callColor: "#4a6a64",
     },
     {
       key: "to_update",

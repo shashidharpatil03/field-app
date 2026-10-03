@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import ModuleHeader from "./ModuleHeader.jsx";
 import { apiFetch } from "./api.js";
 import { useT } from "./i18n.jsx";
 import AddFacilitator from "./AddFacilitator.jsx";
@@ -110,9 +111,7 @@ function PuManagement({ onHome }) {
 
   return (
     <div className="page">
-      <button className="home-button" onClick={onHome}>
-        ← {t("back")}
-      </button>
+      <ModuleHeader titleKey="menu_pu" onBack={onHome} />
 
       {message && <p className="message">{message}</p>}
 

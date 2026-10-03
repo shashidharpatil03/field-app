@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useT } from "./i18n.jsx";
 import { apiFetch } from "./api.js";
 import { getPending } from "./offline.js";
-import SyncStrip from "./SyncStrip.jsx";
 import {
   FarmerIcon,
   PracticeIcon,
@@ -72,8 +71,6 @@ function Home({ onOpen, user, onLogOut }) {
           </button>
         ))}
       </div>
-
-      <SyncStrip onOpen={() => onOpen("sync")} />
 
       <button className="link-button logout" onClick={onLogOut}>
         {t("logOut")}

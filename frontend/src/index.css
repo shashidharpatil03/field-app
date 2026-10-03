@@ -4,37 +4,37 @@
    bright sun. Change a colour here and the whole app follows. */
 :root {
   /* Better Cotton brand colours */
-  --soil: #925c4a;
-  --sand: #dbbf9e;
-  --fibre: #f4f3ec;
-  --deep-blue: #0f2b40;
+  --soil: #0a5a52;
+  --sand: #dff2ee;
+  --fibre: #eef6f3;
+  --deep-blue: #10332e;
   --mid-blue: #45639e;
   --fresh-blue: #c2d4f7;
-  --deep-green: #14694a;
-  --mid-green: #23b57f;
-  --fresh-green: #bfe0a6;
+  --deep-green: #0a7a6c;
+  --mid-green: #1f9a86;
+  --fresh-green: #dff2ee;
 
   /* How the app uses them. Text is Deep Blue (13:1 on Fibre), buttons are
      Deep Green, headings a darker Soil so they stay readable in sunlight. */
   --bg: #eef6f3;
   --card: #ffffff;
   --text: #10332e;
-  --muted: #4a5d70;
-  --border: #8a7a66;
-  --border-soft: #d6cfc0;
+  --muted: #4a6a64;
+  --border: #9db8b1;
+  --border-soft: #d5e6e1;
   --border-card: #d5e6e1;
-  --shadow: 0 2px 8px rgba(15, 43, 64, 0.1);
+  --shadow: 0 2px 8px rgba(10, 90, 82, 0.1);
   --primary: #0a7a6c;
   --primary-text: #ffffff;
   --heading: #0a5a52;
   --danger: #a31515;
   --ok-bg: var(--fresh-green);
-  --ok-text: #0c3b2a;
+  --ok-text: #0a4f48;
   --ok-border: var(--deep-green);
   --warn-bg: #f3e3c3;
   --warn-text: #4a3000;
   --warn-border: #8a5a00;
-  --radius: 18px;
+  --radius: 20px;
 
   /* Poppins for headings, Roboto for everything else. Both are saved inside
      the app. Marathi text uses Poppins (which has Devanagari) for headings
@@ -240,8 +240,8 @@ select {
 }
 
 .badge.dropped_out {
-  background: #e6e2d6;
-  color: #3b372c;
+  background: #e3eeea;
+  color: #2e3d3a;
   border-color: var(--border);
 }
 
@@ -647,12 +647,12 @@ button.primary:disabled {
 }
 
 .tile-practice {
-  background: linear-gradient(160deg, #ffffff 45%, #f3e8d8);
+  background: linear-gradient(160deg, #ffffff 45%, #eef2f0);
 }
 
 .tile-practice .menu-icon {
-  background: linear-gradient(135deg, #ead7bc, var(--sand));
-  color: #4a2a1d;
+  background: linear-gradient(135deg, #dbe6e3, var(--sand));
+  color: #0a4f48;
 }
 
 .tile-capacity {
@@ -665,11 +665,11 @@ button.primary:disabled {
 }
 
 .tile-rir {
-  background: linear-gradient(160deg, #ffffff 45%, #f1e1d9);
+  background: linear-gradient(160deg, #ffffff 45%, #e9efed);
 }
 
 .tile-rir .menu-icon {
-  background: linear-gradient(135deg, #b0745f, var(--soil));
+  background: linear-gradient(135deg, #1f9a86, var(--soil));
   color: #ffffff;
 }
 
@@ -745,7 +745,7 @@ button.primary:disabled {
 
 .sync-pill.off {
   background: var(--sand);
-  color: #4a2a1d;
+  color: #0a4f48;
 }
 
 .sync-dot {
@@ -822,8 +822,8 @@ button.primary:disabled {
 /* ---- group list and farmer list ---- */
 
 .badge.neutral {
-  background: #e6e2d6;
-  color: #3b372c;
+  background: #e3eeea;
+  color: #2e3d3a;
   border-color: var(--border);
 }
 
@@ -1015,7 +1015,7 @@ button.primary:disabled {
 
 .ring-back {
   fill: none;
-  stroke: #e3dccb;
+  stroke: #dbe6e3;
   stroke-width: 7;
 }
 
@@ -1032,7 +1032,7 @@ button.primary:disabled {
   height: 8px;
   margin-top: 8px;
   border-radius: 999px;
-  background: #e3dccb;
+  background: #dbe6e3;
   overflow: hidden;
 }
 
@@ -1154,7 +1154,7 @@ button.primary:disabled {
 /* ---- dashboard hero card ---- */
 
 .hero {
-  background: linear-gradient(135deg, #14694a, #0f5a3f);
+  background: linear-gradient(135deg, #0a7a6c, #0f5a3f);
   color: #fff;
   border-radius: var(--radius);
   padding: 16px;
@@ -1662,13 +1662,13 @@ button.danger.solid {
 
 /* green: this season's two chips, lighter text, solid dark number box */
 .lgc-chip.season {
-  background: #cfe9dc;
-  border-color: #cfe9dc;
-  color: #2f7a58;
+  background: #dff2ee;
+  border-color: #dff2ee;
+  color: #0a7a6c;
 }
 
 .lgc-chip.season .lgc-chip-num {
-  background: #14694a;
+  background: #0a7a6c;
 }
 
 /* tan: dropped out */
@@ -1683,13 +1683,13 @@ button.danger.solid {
 }
 
 .lgc-chip.quiet {
-  background: #f1ece0;
-  border-color: #f1ece0;
-  color: #7a6a4d;
+  background: #e9efed;
+  border-color: #e9efed;
+  color: #5d6b68;
 }
 
 .lgc-chip.quiet .lgc-chip-num {
-  background: #8a7a66;
+  background: #8aa39d;
 }
 
 /* red: still to update */
@@ -1807,15 +1807,15 @@ button.danger.solid {
 }
 
 .cont-btn.green {
-  background: #cfe9dc;
-  border-color: #cfe9dc;
-  color: #2f7a58;
+  background: #dff2ee;
+  border-color: #dff2ee;
+  color: #0a7a6c;
 }
 
 .cont-btn.tan {
-  background: #f1ece0;
-  border-color: #f1ece0;
-  color: #7a6a4d;
+  background: #e9efed;
+  border-color: #e9efed;
+  color: #5d6b68;
 }
 
 .cont-btn.red {
@@ -1830,13 +1830,13 @@ button.danger.solid {
 }
 
 .cont-btn.green.sel {
-  background: #14694a;
-  border-color: #0d4a34;
+  background: #0a7a6c;
+  border-color: #075f54;
 }
 
 .cont-btn.tan.sel {
-  background: #8a7a66;
-  border-color: #5f5345;
+  background: #8aa39d;
+  border-color: #4a6a64;
 }
 
 .cont-btn.red.sel {
@@ -2039,7 +2039,7 @@ button.lgc-total-btn {
 
 .farmer-row > div.st-new::before,
 .farmer-row > div.st-continued::before {
-  background: #14694a;
+  background: #0a7a6c;
 }
 
 .farmer-row > div.st-to_update::before {
@@ -2047,7 +2047,7 @@ button.lgc-total-btn {
 }
 
 .farmer-row > div.st-dropped::before {
-  background: #8a7a66;
+  background: #8aa39d;
 }
 
 .frow-top strong,
@@ -2066,14 +2066,14 @@ button.lgc-total-btn {
 
 .cont-btn.all {
   grid-column: span 3;
-  background: #e6e2d6;
-  border-color: #e6e2d6;
-  color: #3b372c;
+  background: #e3eeea;
+  border-color: #e3eeea;
+  color: #2e3d3a;
 }
 
 .cont-btn.all.sel {
-  background: #3b372c;
-  border-color: #231f17;
+  background: #2e3d3a;
+  border-color: #10332e;
   color: #fff;
   font-weight: 700;
 }
@@ -2086,14 +2086,14 @@ button.lgc-total-btn {
 }
 
 .cont-btn.all.farmers {
-  background: #cfe9dc;
-  border-color: #cfe9dc;
-  color: #2f7a58;
+  background: #dff2ee;
+  border-color: #dff2ee;
+  color: #0a7a6c;
 }
 
 .cont-btn.all.farmers.sel {
-  background: #14694a;
-  border-color: #0d4a34;
+  background: #0a7a6c;
+  border-color: #075f54;
   color: #fff;
 }
 
@@ -2206,8 +2206,8 @@ button.lgc-total-btn {
   flex: 1;
   padding: 8px 12px;
   border-radius: 12px;
-  background: #cfe9dc;
-  color: #2f7a58;
+  background: #dff2ee;
+  color: #0a7a6c;
   font-size: 14px;
 }
 
@@ -2247,8 +2247,8 @@ button.lgc-total-btn {
   margin: 10px 0 4px;
   padding: 0 12px;
   border-radius: 12px;
-  background: #e6e2d6;
-  border-color: #e6e2d6;
+  background: #e3eeea;
+  border-color: #e3eeea;
   color: var(--text);
   text-align: left;
   font-weight: 700;
@@ -2263,7 +2263,7 @@ button.lgc-total-btn {
 .group-count {
   padding: 2px 10px;
   border-radius: 999px;
-  background: #14694a;
+  background: #0a7a6c;
   color: #fff;
   font-size: 13px;
   white-space: nowrap;
@@ -2282,7 +2282,7 @@ button.lgc-total-btn {
   margin: -4px 0 14px;
   padding: 8px 12px;
   border-radius: 10px;
-  background: #e6e2d6;
+  background: #e3eeea;
   color: var(--muted);
   font-size: 15px;
 }
@@ -2589,32 +2589,6 @@ button.lgc-total-btn {
   box-shadow: 0 2px 8px rgba(10, 90, 82, 0.07);
 }
 
-.sd-name {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 1px;
-  min-width: 0;
-  min-height: 52px;
-  margin: 0;
-  padding: 4px 8px;
-  border: 0;
-  background: transparent;
-  text-align: left;
-  color: var(--text);
-}
-
-.sd-name strong {
-  font-size: 17px;
-}
-
-.sd-name span {
-  color: #7aa59d;
-  font-size: 12.5px;
-  font-weight: 700;
-}
-
 .sd-bring {
   flex: none;
   margin: 0;
@@ -2776,4 +2750,337 @@ button.lgc-total-btn {
 
 .dash-pair button:disabled {
   opacity: 0.7;
+}
+
+/* ---- Final look: soft mint page, teal headers, white rounded cards ------ */
+body {
+  background: var(--bg);
+}
+
+/* Home top bar: white, with a soft shadow */
+.topbar-bg {
+  background: #fff;
+  border-radius: 0 0 28px 28px;
+  box-shadow: 0 4px 16px rgba(10, 90, 82, 0.1);
+}
+
+.avatar {
+  background: linear-gradient(135deg, #1f9a86, #0a5a52);
+}
+
+/* Home tiles: white cards with one coloured icon each */
+.menu-tile,
+.tile-farmers,
+.tile-practice,
+.tile-capacity,
+.tile-rir,
+.tile-pu,
+.tile-sent,
+.tile-incomplete,
+.tile-sync {
+  background: #fff;
+  border: 0;
+  box-shadow: 0 2px 10px rgba(10, 90, 82, 0.09);
+}
+
+.menu-icon {
+  border-radius: 20px;
+  box-shadow: none;
+}
+
+.tile-farmers .menu-icon {
+  background: linear-gradient(135deg, #1f9a86, #0a5a52);
+}
+
+.tile-practice .menu-icon {
+  background: linear-gradient(135deg, #f59e4b, #e8731a);
+  color: #fff;
+}
+
+.tile-capacity .menu-icon {
+  background: linear-gradient(135deg, #5b8def, #2e6fe0);
+  color: #fff;
+}
+
+.tile-rir .menu-icon {
+  background: linear-gradient(135deg, #9b7be6, #6a4fd0);
+  color: #fff;
+}
+
+.tile-pu .menu-icon {
+  background: linear-gradient(135deg, #5f6fb8, #3b4a8f);
+  color: #fff;
+}
+
+.tile-sent .menu-icon {
+  background: linear-gradient(135deg, #34b79f, #0a8f7c);
+  color: #fff;
+}
+
+.tile-incomplete .menu-icon {
+  background: linear-gradient(135deg, #f6bd4a, #e8a317);
+  color: #fff;
+}
+
+.tile-sync .menu-icon {
+  background: linear-gradient(135deg, #5b8def, #2e6fe0);
+  color: #fff;
+}
+
+.sync-strip {
+  background: linear-gradient(150deg, #0a4f48, #0f7566);
+}
+
+/* Header of every module other than Farmer Data */
+.mhead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 26px;
+  background: linear-gradient(160deg, #0a5a52 0%, #1f9a86 100%);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(10, 90, 82, 0.22);
+}
+
+.mhead h1 {
+  margin: 0;
+  color: #fff;
+  font-size: 21px;
+}
+
+.mhead-back {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+}
+
+/* Cards and inputs: rounder, softer edges */
+.sheet {
+  border-radius: 26px 26px 0 0;
+}
+
+input[type="text"],
+input[type="tel"],
+input[type="number"],
+select,
+textarea {
+  border-color: #b7cdc7;
+  border-radius: 14px;
+}
+
+/* Farmer rows on Submit Data: roomy, code first and clear, full name */
+.sd-row {
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px 12px 10px 8px;
+  border-radius: 20px;
+}
+
+.sd-call {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+}
+
+/* ---- Sync chip, top right of Home ---------------------------------------- */
+.welcome-block {
+  justify-content: space-between;
+}
+
+.welcome-text {
+  min-width: 0;
+}
+
+.sync-chip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  min-height: 52px;
+  padding: 6px 14px 6px 10px;
+  border: 0;
+  border-radius: 18px;
+  text-align: left;
+  line-height: 1.15;
+}
+
+.sync-chip-icon {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.sync-chip-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.sync-chip-text b {
+  font-size: 14px;
+}
+
+.sync-chip-text small {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.sync-chip.ok {
+  background: #dff2ee;
+  color: #0a5a52;
+}
+
+.sync-chip.wait {
+  background: #fde7d3;
+  color: #a5470a;
+}
+
+.sync-chip.off {
+  background: #e9efed;
+  color: #4a6a64;
+}
+
+.sync-chip.bad {
+  background: #f8dcdc;
+  color: #a31515;
+}
+
+.sync-chip.busy {
+  background: #e3ecfb;
+  color: #2e4fc4;
+}
+
+.sync-chip.busy .sync-chip-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-chip.busy .sync-chip-icon {
+    animation: none;
+  }
+}
+
+/* ---- Farmer rows on Submit Data: code tag, name on the right, call ------- */
+.sd-row {
+  gap: 8px;
+  padding: 6px 8px 6px 10px;
+  margin-bottom: 8px;
+  border-radius: 18px;
+}
+
+/* The code: same size and colour as the name. Continuity is the thin line
+   along the bottom of the card. */
+.sd-code {
+  flex: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.sd-row {
+  padding-bottom: 6px;
+  --edge: #b9c8c4;
+  box-shadow:
+    inset 0 -1px 0 var(--edge),
+    0 2px 8px rgba(10, 90, 82, 0.07);
+}
+
+.sd-row.st-new {
+  --edge: #0a8f7c;
+}
+
+.sd-row.st-continued {
+  --edge: #2e6fe0;
+}
+
+.sd-row.st-to_update {
+  --edge: #e8731a;
+}
+
+.sd-row.st-dropped {
+  --edge: #8a9996;
+}
+
+.sd-name {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  display: block;
+  margin: 0 0 0 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.sd-bring {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  padding: 0;
+  border: 2px solid #0a7a6c;
+  border-radius: 50%;
+  background: #fff;
+  color: #0a7a6c;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.sd-call {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.sd-call svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* All farmers this year: violet, apart from the green of Newly added */
+.fstats button.on.v {
+  color: #6a4fd0;
+}
+
+.sd-count.v {
+  background: #6a4fd0;
 }

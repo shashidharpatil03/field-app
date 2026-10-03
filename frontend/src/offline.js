@@ -103,6 +103,15 @@ export function getLastSync() {
   return read(`lastsync_${getApiUser()}`, null);
 }
 
+// Called when the person taps Sync and everything got through: the time
+// becomes now, even if there was nothing to send.
+export function markSynced() {
+  if (getApiUser() !== null) {
+    write(`lastsync_${getApiUser()}`, new Date().toISOString());
+    announce();
+  }
+}
+
 // ---- When data last reached the server --------------------------------
 // apiFetch announces every successful save ("data-sent"); we keep the time.
 window.addEventListener("data-sent", () => {

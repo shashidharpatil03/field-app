@@ -33,7 +33,8 @@ function FarmerData({ onHome, user }) {
   const isManager = user.role === "pu_manager";
   const [lgs, setLgs] = useState([]);
   const [savedCopyFrom, setSavedCopyFrom] = useState(null);
-  const [screen, setScreen] = useState("submit");
+  // Managers see the numbers first; facilitators go straight to their farmers.
+  const [screen, setScreen] = useState(isManager ? "dashboard" : "submit");
   // What Submit Data shows: which year, which status, which groups are folded.
   const [submitView, setSubmitView] = useState({
     year: "last",

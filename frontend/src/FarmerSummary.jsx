@@ -5,11 +5,11 @@ import PartChips from "./PartChips.jsx";
 
 // Colours for the profile charts: blues and brown, so they are not mixed up
 // with the green, sand and red of the update tracker.
-const BLUE = { color: "#45639e", textColor: "#fff", callColor: "#45639e" };
-const PALE = { color: "#c2d4f7", textColor: "#0f2b40", callColor: "#0f2b40" };
-const BROWN = { color: "#925c4a", textColor: "#fff", callColor: "#925c4a" };
-const NAVY = { color: "#0f2b40", textColor: "#fff", callColor: "#0f2b40" };
-const GREY = { color: "#d6cfc0", textColor: "#0f2b40", callColor: "#4a5d70" };
+const BLUE = { color: "#2e6fe0", textColor: "#fff", callColor: "#2e6fe0" };
+const PALE = { color: "#bcd2f7", textColor: "#10332e", callColor: "#10332e" };
+const BROWN = { color: "#0a8f7c", textColor: "#fff", callColor: "#0a8f7c" };
+const NAVY = { color: "#0a4f48", textColor: "#fff", callColor: "#0a4f48" };
+const GREY = { color: "#c9d8d4", textColor: "#10332e", callColor: "#4a6a64" };
 
 // One chart card: a title, a bar with percentages, and a tappable pill for
 // each part with its number. Each part knows which filters to open.

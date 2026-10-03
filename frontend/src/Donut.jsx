@@ -41,7 +41,7 @@ function Donut({ parts, size = 120, stroke = 16, label, caption, name }) {
         cy={middle}
         r={radius}
         fill="none"
-        stroke="#e3dccb"
+        stroke="#dbe6e3"
         strokeWidth={stroke}
       />
       {arcs}

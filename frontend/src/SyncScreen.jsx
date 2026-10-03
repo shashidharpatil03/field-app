@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
+import ModuleHeader from "./ModuleHeader.jsx";
 import { useT } from "./i18n.jsx";
 import {
   getPending,
   removePending,
   syncAll,
   getLastSync,
+  markSynced,
   formatWhen,
 } from "./offline.js";
 
@@ -43,6 +45,12 @@ function SyncScreen({ onHome }) {
     try {
       const outcome = await syncAll();
       setReport(outcome);
+      if (
+        !outcome.offline &&
+        outcome.results.every((r) => r.status === "done")
+      ) {
+        markSynced();
+      }
       setLastSync(getLastSync());
     } catch {
       setReport({ results: [], offline: false, failed: true });
@@ -62,9 +70,7 @@ function SyncScreen({ onHome }) {
 
   return (
     <div className="page">
-      <button className="home-button" onClick={onHome}>
-        ← {t("back")}
-      </button>
+      <ModuleHeader titleKey="menu_sync" onBack={onHome} />
 
       <p className={online ? "online-note" : "offline-note"}>
         {online ? t("netOnline") : t("netOffline")}

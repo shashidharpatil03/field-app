@@ -62,7 +62,7 @@ const BUTTONS = {
       season: "this_year",
       label: "allThisYear",
       count: "season_farmers",
-      tone: "g",
+      tone: "v",
     },
   ],
 };
@@ -212,11 +212,14 @@ function SubmitData({
   // Last year's view lists only groups that have somebody under the chosen
   // button. This year's lists every group, so a farmer can be added to a
   // group that has none yet. While searching, only groups with a match.
+  const addable = view.year === "this" && current.key === "new";
   const shown = lgs.filter((lg) => {
     if (query || filtersOn) {
       return farmers.some((f) => f.lg_id === lg.id);
     }
-    return view.year === "this" || countFor(lg, current) > 0;
+    // Only "Newly added" lists every group, so a farmer can be added to a
+    // group that has nobody new yet.
+    return addable || countFor(lg, current) > 0;
   });
   const allClosed = shown.length > 0 && shown.every((lg) => closed[lg.id]);
 
@@ -393,7 +396,7 @@ function SubmitData({
                     </span>
                   </span>
                 </button>
-                {view.year === "this" && (
+                {addable && (
                   <button
                     className="sd-add"
                     onClick={() => onRegister(lg, null)}
@@ -409,20 +412,27 @@ function SubmitData({
               {!isClosed && (
                 <ul className="sd-farmers">
                   {inLg.map((f) => (
-                    <li className="sd-row" key={f.id}>
+                    <li className={`sd-row st-${f.season_status}`} key={f.id}>
+                      <button
+                        className="sd-code"
+                        onClick={() => onOpenFarmer(f.id)}
+                      >
+                        {f.farmer_code}
+                      </button>
                       <button
                         className="sd-name"
                         onClick={() => onOpenFarmer(f.id)}
                       >
-                        <strong>{f.name}</strong>
-                        <span>{f.farmer_code}</span>
+                        {f.name}
                       </button>
                       {f.season_status === "dropped" && (
                         <button
                           className="sd-bring"
+                          title={t("bringBack")}
+                          aria-label={t("bringBack")}
                           onClick={() => onOpenFarmer(f.id, true)}
                         >
-                          ↩ {t("bringBack")}
+                          ↩
                         </button>
                       )}
                       {f.mobile && (
