@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from land_rules import check_draft_land, check_land, show_acres
+from name_parts import build_name, clean, part_errors, parts_from
 
 WATER_CHOICES = ["Rainfed", "Partially irrigated", "Fully irrigated"]
 
@@ -680,8 +681,16 @@ DASHBOARD_FROM = """
 
 
 @app.get("/farmers/dashboard")
-def farmers_dashboard(user: dict = Depends(current_user)):
+def farmers_dashboard(
+    lg_id: Optional[int] = None, user: dict = Depends(current_user)
+):
+    """The figures for everything this person can see, or for one learning
+    group when lg_id is given."""
     scope = [user["role"], user["pu_id"], user["role"], user["ff_id"]]
+    from_sql = DASHBOARD_FROM
+    if lg_id is not None:
+        from_sql += " AND farmers.lg_id = ?"
+        scope.append(lg_id)
     first_day = season_start(date.today())
     start = first_day.isoformat()
     parts = season_sql(start)
@@ -690,7 +699,7 @@ def farmers_dashboard(user: dict = Depends(current_user)):
     def count(key):
         sql, values = parts[key]
         return connection.execute(
-            "SELECT COUNT(*) " + DASHBOARD_FROM + " AND " + sql,
+            "SELECT COUNT(*) " + from_sql + " AND " + sql,
             scope + values,
         ).fetchone()[0]
 
@@ -711,7 +720,7 @@ def farmers_dashboard(user: dict = Depends(current_user)):
                COALESCE(SUM(farmers.water_regime = 'Fully irrigated'), 0),
                COALESCE(SUM(farmers.water_regime IS NULL), 0)
         """
-        + DASHBOARD_FROM
+        + from_sql
         + " AND "
         + sql,
         scope + values,
@@ -800,6 +809,9 @@ def get_farmer(farmer_id: int, user: dict = Depends(current_user)):
                 || '-' || printf('%03d', learning_groups.lg_number)
                 AS lg_code,
             farmers.name,
+            farmers.first_name,
+            farmers.middle_name,
+            farmers.last_name,
             farmers.gender,
             farmers.growing_cotton,
             farmers.mobile,
@@ -839,7 +851,10 @@ ALLOWED_GENDERS = ["Female", "Male", "Other"]
 
 
 class DraftBody(BaseModel):
-    name: str = ""
+    first_name: str = ""
+    middle_name: str = ""
+    last_name: str = ""
+    name: str = ""  # only from older requests; the parts are used when given
     gender: str = ""
     growing_cotton: Optional[bool] = None
     mobile: str = ""
@@ -862,13 +877,9 @@ def name_error(name, who):
     return None
 
 
-def check_farmer(name, gender, growing_cotton, mobile=""):
+def check_farmer(first, middle, last, gender, growing_cotton, mobile=""):
     """Checks the personal answers. The land answers use check_land()."""
-    errors = {}
-
-    message = name_error(name, "farmer")
-    if message:
-        errors["name"] = message
+    errors = part_errors(first, middle, last)
 
     if gender not in ALLOWED_GENDERS:
         errors["gender"] = "Please choose a gender"
@@ -883,12 +894,12 @@ def check_farmer(name, gender, growing_cotton, mobile=""):
     return errors
 
 
-def check_draft(name, gender, mobile="", total=None, cotton=None, water=""):
+def check_draft(first, middle, last, gender, mobile="", total=None,
+                cotton=None, water=""):
     errors = check_draft_land(total, cotton, water)
     if mobile != "" and not re.fullmatch(r"[0-9]{1,10}", mobile):
         errors["mobile"] = "Mobile number can only have digits (up to 10)"
-    if len(name) > 60:
-        errors["name"] = "Name is too long (at most 60 letters)"
+    errors.update(part_errors(first, middle, last, strict=False))
     if gender != "" and gender not in ALLOWED_GENDERS:
         errors["gender"] = "Please choose a gender"
     return errors
@@ -927,7 +938,8 @@ def all_my_drafts(user: dict = Depends(current_user)):
     rows = connection.execute(
         """
         SELECT farmer_drafts.id, farmer_drafts.lg_id, farmer_drafts.name,
-               farmer_drafts.gender, farmer_drafts.growing_cotton,
+               farmer_drafts.first_name, farmer_drafts.middle_name,
+               farmer_drafts.last_name, farmer_drafts.gender, farmer_drafts.growing_cotton,
                farmer_drafts.mobile, farmer_drafts.total_landholding,
                farmer_drafts.area_under_cotton, farmer_drafts.water_regime,
                farmer_drafts.confirmed_large, farmer_drafts.updated_at,
@@ -1028,7 +1040,8 @@ def list_drafts(lg_id: int, user: dict = Depends(current_user)):
     require_lg(connection, user, lg_id)
     rows = connection.execute(
         """
-        SELECT id, name, gender, growing_cotton, mobile, total_landholding,
+        SELECT id, name, first_name, middle_name, last_name, gender,
+               growing_cotton, mobile, total_landholding,
                area_under_cotton, water_regime, confirmed_large, updated_at
         FROM farmer_drafts
         WHERE lg_id = ?
@@ -1042,10 +1055,12 @@ def list_drafts(lg_id: int, user: dict = Depends(current_user)):
 
 @app.post("/lgs/{lg_id}/drafts")
 def create_draft(lg_id: int, body: DraftBody, user: dict = Depends(current_user)):
-    name = " ".join(body.name.split())
+    first, middle, last = parts_from(
+        body.first_name, body.middle_name, body.last_name, body.name
+    )
     mobile = body.mobile.strip()
     errors = check_draft(
-        name, body.gender, mobile,
+        first, middle, last, body.gender, mobile,
         body.total_landholding, body.area_under_cotton, body.water_regime,
     )
     if errors:
@@ -1059,11 +1074,13 @@ def create_draft(lg_id: int, body: DraftBody, user: dict = Depends(current_user)
     cursor = connection.execute(
         """
         INSERT INTO farmer_drafts
-            (lg_id, name, gender, growing_cotton, mobile, total_landholding,
+            (lg_id, name, first_name, middle_name, last_name, gender,
+             growing_cotton, mobile, total_landholding,
              area_under_cotton, water_regime, confirmed_large, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (lg_id, name, body.gender, growing, mobile,
+        (lg_id, build_name(first, middle, last), first, middle, last,
+         body.gender, growing, mobile,
          body.total_landholding, body.area_under_cotton, body.water_regime,
          int(body.confirmed_large),
          datetime.now().isoformat(timespec="seconds")),
@@ -1077,10 +1094,12 @@ def create_draft(lg_id: int, body: DraftBody, user: dict = Depends(current_user)
 
 @app.put("/drafts/{draft_id}")
 def update_draft(draft_id: int, body: DraftBody, user: dict = Depends(current_user)):
-    name = " ".join(body.name.split())
+    first, middle, last = parts_from(
+        body.first_name, body.middle_name, body.last_name, body.name
+    )
     mobile = body.mobile.strip()
     errors = check_draft(
-        name, body.gender, mobile,
+        first, middle, last, body.gender, mobile,
         body.total_landholding, body.area_under_cotton, body.water_regime,
     )
     if errors:
@@ -1092,12 +1111,14 @@ def update_draft(draft_id: int, body: DraftBody, user: dict = Depends(current_us
     cursor = connection.execute(
         """
         UPDATE farmer_drafts
-        SET name = ?, gender = ?, growing_cotton = ?, mobile = ?,
+        SET name = ?, first_name = ?, middle_name = ?, last_name = ?,
+            gender = ?, growing_cotton = ?, mobile = ?,
             total_landholding = ?, area_under_cotton = ?, water_regime = ?,
             confirmed_large = ?, updated_at = ?
         WHERE id = ?
         """,
-        (name, body.gender, growing, mobile,
+        (build_name(first, middle, last), first, middle, last,
+         body.gender, growing, mobile,
          body.total_landholding, body.area_under_cotton, body.water_regime,
          int(body.confirmed_large),
          datetime.now().isoformat(timespec="seconds"), draft_id),
@@ -1133,8 +1154,9 @@ def submit_draft(draft_id: int, user: dict = Depends(current_user)):
     require_draft(connection, user, draft_id)
 
     draft = connection.execute(
-        "SELECT lg_id, name, gender, growing_cotton, mobile, "
-        "total_landholding, area_under_cotton, water_regime, confirmed_large "
+        "SELECT lg_id, first_name, middle_name, last_name, name, gender, "
+        "growing_cotton, mobile, total_landholding, area_under_cotton, "
+        "water_regime, confirmed_large "
         "FROM farmer_drafts WHERE id = ?",
         (draft_id,),
     ).fetchone()
@@ -1142,12 +1164,14 @@ def submit_draft(draft_id: int, user: dict = Depends(current_user)):
         connection.close()
         raise HTTPException(status_code=404, detail={"form": "Draft not found"})
 
-    (lg_id, name, gender, growing, mobile,
+    (lg_id, first, middle, last, old_name, gender, growing, mobile,
      total, cotton, water, confirmed) = draft
+    first, middle, last = parts_from(first, middle, last, old_name)
+    name = build_name(first, middle, last)
     require_active_lg(connection, lg_id, True)
     growing_cotton = None if growing is None else bool(growing)
 
-    errors = check_farmer(name, gender, growing_cotton, mobile)
+    errors = check_farmer(first, middle, last, gender, growing_cotton, mobile)
     land_errors, cotton = check_land(
         total, cotton, water, growing_cotton, bool(confirmed)
     )
@@ -1175,12 +1199,14 @@ def submit_draft(draft_id: int, user: dict = Depends(current_user)):
         cursor = connection.execute(
             """
             INSERT INTO farmers
-                (lg_id, farmer_number, name, gender, growing_cotton, mobile,
+                (lg_id, farmer_number, name, first_name, middle_name,
+                 last_name, gender, growing_cotton, mobile,
                  total_landholding, area_under_cotton, water_regime,
                  registered_on, registered_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (lg_id, number, name, gender, growing, mobile or None,
+            (lg_id, number, name, first, middle, last, gender, growing,
+             mobile or None,
              round(total, 2), cotton, water, date.today().isoformat(),
              user["id"]),
         )
@@ -1214,7 +1240,10 @@ def submit_draft(draft_id: int, user: dict = Depends(current_user)):
 
 
 class FarmerEdit(BaseModel):
-    name: str = ""
+    first_name: str = ""
+    middle_name: str = ""
+    last_name: str = ""
+    name: str = ""  # only from older requests; the parts are used when given
     gender: str = ""
     growing_cotton: Optional[bool] = None
     mobile: str = ""
@@ -1232,11 +1261,14 @@ class FarmerEdit(BaseModel):
 def edit_farmer(
     farmer_id: int, body: FarmerEdit, user: dict = Depends(current_user)
 ):
-    name = " ".join(body.name.split())
+    first, middle, last = parts_from(
+        body.first_name, body.middle_name, body.last_name, body.name
+    )
+    name = build_name(first, middle, last)
     reason = " ".join(body.reason.split())
     mobile = body.mobile.strip()
 
-    errors = check_farmer(name, body.gender, body.growing_cotton, mobile)
+    errors = check_farmer(first, middle, last, body.gender, body.growing_cotton, mobile)
     if len(reason) > 200:
         errors["reason"] = "Reason is too long (at most 200 characters)"
 
@@ -1244,8 +1276,8 @@ def edit_farmer(
     require_farmer(connection, user, farmer_id, True)
     old = connection.execute(
         "SELECT name, gender, growing_cotton, mobile, total_landholding, "
-        "area_under_cotton, water_regime, participation FROM farmers "
-        "WHERE id = ?",
+        "area_under_cotton, water_regime, participation, first_name, "
+        "middle_name, last_name FROM farmers WHERE id = ?",
         (farmer_id,),
     ).fetchone()
     if old is None:
@@ -1277,6 +1309,12 @@ def edit_farmer(
     changes = []
     if old[0] != name:
         changes.append(("Name", old[0], name))
+    elif (old[8], old[9], old[10]) != (first, middle, last):
+        # Same full name, but a word moved between first, middle and last.
+        changes.append(
+            ("Name parts", f"{old[8]} | {old[9]} | {old[10]}",
+             f"{first} | {middle} | {last}")
+        )
     if old[1] != body.gender:
         changes.append(("Gender", old[1], body.gender))
     if old[2] != new_cotton:
@@ -1312,10 +1350,12 @@ def edit_farmer(
     today = date.today().isoformat()
     try:
         connection.execute(
-            "UPDATE farmers SET name = ?, gender = ?, growing_cotton = ?, "
+            "UPDATE farmers SET name = ?, first_name = ?, middle_name = ?, "
+            "last_name = ?, gender = ?, growing_cotton = ?, "
             "mobile = ?, total_landholding = ?, area_under_cotton = ?, "
             "water_regime = ? WHERE id = ?",
-            (name, body.gender, new_cotton, mobile or None, new_total,
+            (name, first, middle, last, body.gender, new_cotton,
+             mobile or None, new_total,
              new_cotton_area, body.water_regime, farmer_id),
         )
     except sqlite3.IntegrityError:

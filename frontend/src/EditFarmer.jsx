@@ -7,6 +7,7 @@ import {
   acresText,
 } from "./farmerRules.js";
 import LandFields from "./LandFields.jsx";
+import NameFields from "./NameFields.jsx";
 import { apiFetch } from "./api.js";
 
 const DROP_REASONS = [
@@ -18,7 +19,9 @@ const DROP_REASONS = [
 ];
 
 function EditFarmer({ farmer, onCancel, onSaved }) {
-  const [name, setName] = useState(farmer.name);
+  const [first, setFirst] = useState(farmer.first_name ?? "");
+  const [middle, setMiddle] = useState(farmer.middle_name ?? "");
+  const [last, setLast] = useState(farmer.last_name ?? "");
   const [gender, setGender] = useState(farmer.gender);
   const [growingCotton, setGrowingCotton] = useState(
     farmer.growing_cotton ? "yes" : "no",
@@ -39,11 +42,17 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
   function handleSave(event) {
     event.preventDefault();
 
-    const found = checkForm(name, gender, growingCotton, mobile, {
-      total: total,
-      cotton: cotton,
-      water: water,
-    });
+    const found = checkForm(
+      { first, middle, last },
+      gender,
+      growingCotton,
+      mobile,
+      {
+        total: total,
+        cotton: cotton,
+        water: water,
+      },
+    );
     if (status === "dropped_out" && status !== farmer.participation) {
       if (dropReason === "") {
         found.participation = "Please choose a reason for dropping";
@@ -79,7 +88,9 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name: name,
+            first_name: first,
+            middle_name: middle,
+            last_name: last,
             gender: gender,
             growing_cotton: growingCotton === "yes",
             mobile: mobile,
@@ -108,17 +119,16 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
 
   return (
     <form onSubmit={handleSave} noValidate>
-      <div className="field">
-        <label htmlFor="edit-name">Full name</label>
-        <input
-          id="edit-name"
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className={errors.name ? "has-error" : ""}
-        />
-        {errors.name && <p className="error">{errors.name}</p>}
-      </div>
+      <NameFields
+        idPrefix="edit"
+        first={first}
+        middle={middle}
+        last={last}
+        errors={errors}
+        onChange={(key, value) =>
+          ({ first: setFirst, middle: setMiddle, last: setLast })[key](value)
+        }
+      />
 
       <div className="field">
         <label htmlFor="edit-gender">Gender</label>

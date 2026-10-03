@@ -112,7 +112,9 @@ function SyncStrip({ onOpen }) {
           {status && <span className="sync-status">{status}</span>}
           <span className="sync-last">
             {lastSync
-              ? t("lastSynced", { time: formatWhen(lastSync) })
+              ? t(online ? "syncedAt" : "lastSyncedAt", {
+                  time: formatWhen(lastSync),
+                })
               : t("neverSynced")}
           </span>
         </button>

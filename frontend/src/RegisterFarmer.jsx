@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   checkForm,
+  fullName,
   parseAcres,
   landFormatErrors,
   needsLargeConfirm,
@@ -8,11 +9,15 @@ import {
   acresText,
 } from "./farmerRules.js";
 import LandFields from "./LandFields.jsx";
+import NameFields from "./NameFields.jsx";
 import { apiFetch } from "./api.js";
 import { addPending, isNetworkError } from "./offline.js";
 
 function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
-  const [name, setName] = useState(draft ? draft.name : "");
+  const [first, setFirst] = useState(draft ? draft.first_name : "");
+  const [middle, setMiddle] = useState(draft ? draft.middle_name : "");
+  const [last, setLast] = useState(draft ? draft.last_name : "");
+  const name = fullName(first, middle, last);
   const [gender, setGender] = useState(draft ? draft.gender : "");
   const [growingCotton, setGrowingCotton] = useState(
     draft && draft.growing_cotton !== null
@@ -53,7 +58,9 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
     const totalValue = parseAcres(total);
     const cottonValue = parseAcres(cotton);
     return {
-      name: name,
+      first_name: first,
+      middle_name: middle,
+      last_name: last,
       gender: gender,
       growing_cotton: growingCotton === "" ? null : growingCotton === "yes",
       mobile: mobile,
@@ -106,7 +113,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
 
   async function handleSaveDraft() {
     if (
-      name.trim() === "" &&
+      name === "" &&
       gender === "" &&
       growingCotton === "" &&
       mobile.trim() === "" &&
@@ -146,11 +153,17 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
 
   function handleReview(event) {
     event.preventDefault();
-    const found = checkForm(name, gender, growingCotton, mobile, {
-      total: total,
-      cotton: cotton,
-      water: water,
-    });
+    const found = checkForm(
+      { first, middle, last },
+      gender,
+      growingCotton,
+      mobile,
+      {
+        total: total,
+        cotton: cotton,
+        water: water,
+      },
+    );
     setErrors(found);
     if (Object.keys(found).length === 0) {
       setStep("review");
@@ -177,7 +190,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
       const data = await response.json();
 
       if (response.ok) {
-        onDone(`${name.trim()} was registered as ${data.farmer_code}.`);
+        onDone(`${name} was registered as ${data.farmer_code}.`);
         return;
       }
       setErrors(typeof data.detail === "object" ? data.detail : {});
@@ -205,7 +218,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
         <div className="card">
           <div className="profile-row">
             <span className="label">Full name</span>
-            <span className="value">{name.trim()}</span>
+            <span className="value">{name}</span>
           </div>
           <div className="profile-row">
             <span className="label">Gender</span>
@@ -273,17 +286,16 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
       <p>Learning group {lgCode}</p>
 
       <form onSubmit={handleReview} noValidate>
-        <div className="field">
-          <label htmlFor="name">Full name</label>
-          <input
-            id="name"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={errors.name ? "has-error" : ""}
-          />
-          {errors.name && <p className="error">{errors.name}</p>}
-        </div>
+        <NameFields
+          idPrefix="reg"
+          first={first}
+          middle={middle}
+          last={last}
+          errors={errors}
+          onChange={(key, value) =>
+            ({ first: setFirst, middle: setMiddle, last: setLast })[key](value)
+          }
+        />
 
         <div className="field">
           <label htmlFor="gender">Gender</label>

@@ -89,6 +89,9 @@ cursor.execute("""
         lg_id INTEGER NOT NULL REFERENCES learning_groups(id),
         farmer_number INTEGER NOT NULL,
         name TEXT NOT NULL,
+        first_name TEXT NOT NULL DEFAULT '',
+        middle_name TEXT NOT NULL DEFAULT '',
+        last_name TEXT NOT NULL DEFAULT '',
         gender TEXT NOT NULL CHECK (gender IN ('Female', 'Male', 'Other')),
         growing_cotton INTEGER NOT NULL CHECK (growing_cotton IN (0, 1)),
         mobile TEXT CHECK (
@@ -120,6 +123,9 @@ cursor.execute("""
         id INTEGER PRIMARY KEY,
         lg_id INTEGER NOT NULL REFERENCES learning_groups(id),
         name TEXT NOT NULL DEFAULT '',
+        first_name TEXT NOT NULL DEFAULT '',
+        middle_name TEXT NOT NULL DEFAULT '',
+        last_name TEXT NOT NULL DEFAULT '',
         gender TEXT NOT NULL DEFAULT '',
         growing_cotton INTEGER,
         mobile TEXT NOT NULL DEFAULT '',
@@ -194,7 +200,9 @@ last_names = ["Patil", "Jadhav", "Shinde", "Pawar", "Kale", "More", "Gaikwad"]
 farmers = []
 for lg_id in range(1, len(groups) + 1):
     for number in range(1, 36):
-        name = random.choice(first_names) + " " + random.choice(last_names)
+        first_name = random.choice(first_names)
+        last_name = random.choice(last_names)
+        name = first_name + " " + last_name
         gender = random.choice(["Female", "Male"])
         growing_cotton = 1 if random.random() < 0.9 else 0
         participation = "dropped_out" if number % 8 == 0 else "continuing"
@@ -205,7 +213,8 @@ for lg_id in range(1, len(groups) + 1):
             while registered_on >= season_start(date.today()).isoformat():
                 registered_on = demo_registered_on(random, date.today())
         farmers.append(
-            (lg_id, number, name, gender, growing_cotton, participation,
+            (lg_id, number, name, first_name, last_name, gender,
+             growing_cotton, participation,
              total, cotton, water, registered_on)
         )
 
@@ -225,9 +234,10 @@ cursor.executemany(
 cursor.executemany(
     """
     INSERT INTO farmers
-        (lg_id, farmer_number, name, gender, growing_cotton, participation,
+        (lg_id, farmer_number, name, first_name, last_name, gender,
+         growing_cotton, participation,
          total_landholding, area_under_cotton, water_regime, registered_on)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """,
     farmers,
 )

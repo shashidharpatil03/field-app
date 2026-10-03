@@ -18,6 +18,45 @@ export function nameError(name, who) {
   return null;
 }
 
+// The full name is always worked out from first, middle and last name.
+export function fullName(first, middle, last) {
+  return [first, middle, last]
+    .map((part) => (part ?? "").trim().replace(/\s+/g, " "))
+    .filter((part) => part !== "")
+    .join(" ");
+}
+
+// Problems with the three name parts, as { first_name: "...", ... }.
+export function nameParts(first, middle, last) {
+  const errors = {};
+  const rules = [
+    ["first_name", "first name", first, true],
+    ["middle_name", "middle name", middle, false],
+    ["last_name", "last name", last, true],
+  ];
+  for (const [field, label, raw, required] of rules) {
+    const text = (raw ?? "").trim();
+    if (text === "") {
+      if (required) {
+        errors[field] = `Please enter the farmer's ${label}`;
+      }
+    } else if (required && text.length < 2) {
+      errors[field] = `The ${label} is too short (at least 2 letters)`;
+    } else if (text.length > 30) {
+      errors[field] = `The ${label} is too long (at most 30 letters)`;
+    } else if (!/^[\p{L}\p{M} .'-]+$/u.test(text)) {
+      errors[field] = `The ${label} can only have letters and spaces`;
+    }
+  }
+  if (
+    Object.keys(errors).length === 0 &&
+    fullName(first, middle, last).length > 60
+  ) {
+    errors.last_name = "The full name is too long (at most 60 letters)";
+  }
+  return errors;
+}
+
 export const WATER_REGIMES = [
   "Rainfed",
   "Partially irrigated",
@@ -135,17 +174,13 @@ export function acresText(value) {
 }
 
 export function checkForm(
-  name,
+  parts,
   gender,
   growingCotton,
   mobile = "",
   land = null,
 ) {
-  const errors = {};
-  const nameMessage = nameError(name, "farmer");
-  if (nameMessage) {
-    errors.name = nameMessage;
-  }
+  const errors = nameParts(parts.first, parts.middle, parts.last);
 
   if (gender === "") {
     errors.gender = "Please choose a gender";

@@ -175,7 +175,7 @@ function FarmerData({ onHome, user }) {
     );
   }
 
-  return <Dashboard key="dashboard" nav={nav} onOpen={openFarmers} />;
+  return <Dashboard key="dashboard" nav={nav} onOpen={openFarmers} lgs={lgs} />;
 }
 
 export default FarmerData;

@@ -98,7 +98,7 @@ function Sent({ onHome, onOpenFarmer, isManager }) {
         </div>
       )}
 
-      <div className="seg">
+      <div className="view-toggle">
         {["day", "week"].map((v) => (
           <button
             key={v}
