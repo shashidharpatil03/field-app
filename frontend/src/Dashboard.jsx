@@ -25,6 +25,13 @@ function Dashboard({ nav, onOpen, lgs = [], isManager = false }) {
   const [lgId, setLgId] = useState("");
   const [ffId, setFfId] = useState("");
   const anyFilter = villageId !== "" || lgId !== "" || ffId !== "";
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  function clearAll() {
+    setVillageId("");
+    setLgId("");
+    setFfId("");
+  }
 
   // Choices for the drop-downs come from the group list. Each choice narrows
   // the others.
@@ -45,6 +52,15 @@ function Dashboard({ nav, onOpen, lgs = [], isManager = false }) {
       (villageId === "" || String(lg.village_id) === villageId) &&
       (ffId === "" || String(lg.ff_id) === ffId),
   );
+
+  // One short line saying what the numbers are for, e.g. "Kheda · LG-03".
+  const summary = [
+    villages.find((v) => String(v.id) === villageId)?.name,
+    lgs.find((lg) => String(lg.id) === lgId)?.lg_code,
+    facilitators.find((f) => String(f.id) === ffId)?.name,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   function chooseVillage(value) {
     setVillageId(value);
@@ -112,55 +128,78 @@ function Dashboard({ nav, onOpen, lgs = [], isManager = false }) {
         </p>
       )}
 
-      <div className="dash-filters">
-        <div className="field">
-          <label htmlFor="dash-village">{t("filterVillage")}</label>
-          <select
-            id="dash-village"
-            value={villageId}
-            onChange={(e) => chooseVillage(e.target.value)}
+      <button className="dash-filter-row" onClick={() => setFilterOpen(true)}>
+        <strong>{summary || t("allGroups")}</strong>
+        <span>{t("filtersTitle")} ▾</span>
+      </button>
+
+      {filterOpen && (
+        <div className="sheet-back" onClick={() => setFilterOpen(false)}>
+          <div
+            className="sheet"
+            role="dialog"
+            aria-label={t("filtersTitle")}
+            onClick={(e) => e.stopPropagation()}
           >
-            <option value="">{t("allVillages")}</option>
-            {villages.map((v) => (
-              <option key={v.id} value={String(v.id)}>
-                {v.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="dash-lg">{t("filterGroup")}</label>
-          <select
-            id="dash-lg"
-            value={lgId}
-            onChange={(e) => setLgId(e.target.value)}
-          >
-            <option value="">{t("allGroups")}</option>
-            {lgChoices.map((lg) => (
-              <option key={lg.id} value={String(lg.id)}>
-                {lg.lg_code}
-              </option>
-            ))}
-          </select>
-        </div>
-        {isManager && (
-          <div className="field dash-ff">
-            <label htmlFor="dash-ff">{t("filterFf")}</label>
-            <select
-              id="dash-ff"
-              value={ffId}
-              onChange={(e) => chooseFf(e.target.value)}
-            >
-              <option value="">{t("allFfs")}</option>
-              {facilitators.map((f) => (
-                <option key={f.id} value={String(f.id)}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
+            <h2>{t("filtersTitle")}</h2>
+            <div className="field">
+              <label htmlFor="dash-village">{t("filterVillage")}</label>
+              <select
+                id="dash-village"
+                value={villageId}
+                onChange={(e) => chooseVillage(e.target.value)}
+              >
+                <option value="">{t("allVillages")}</option>
+                {villages.map((v) => (
+                  <option key={v.id} value={String(v.id)}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="dash-lg">{t("filterGroup")}</label>
+              <select
+                id="dash-lg"
+                value={lgId}
+                onChange={(e) => setLgId(e.target.value)}
+              >
+                <option value="">{t("allGroups")}</option>
+                {lgChoices.map((lg) => (
+                  <option key={lg.id} value={String(lg.id)}>
+                    {lg.lg_code}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {isManager && (
+              <div className="field">
+                <label htmlFor="dash-ff">{t("filterFf")}</label>
+                <select
+                  id="dash-ff"
+                  value={ffId}
+                  onChange={(e) => chooseFf(e.target.value)}
+                >
+                  <option value="">{t("allFfs")}</option>
+                  {facilitators.map((f) => (
+                    <option key={f.id} value={String(f.id)}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="sheet-buttons">
+              {anyFilter && (
+                <button onClick={clearAll}>{t("clearFilters")}</button>
+              )}
+              <button className="primary" onClick={() => setFilterOpen(false)}>
+                {t("done")}
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <FarmersCard data={data} onOpen={openWithGroup} />
       <FarmerSummary data={data} onOpen={openWithGroup} />

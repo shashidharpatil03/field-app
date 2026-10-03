@@ -1,10 +1,11 @@
 import { useT } from "./i18n.jsx";
 import { HomeIcon } from "./icons.jsx";
 
-// The bar at the top of the Farmer Data screens: a home icon, then two big
-// buttons, "Submit Data" and "Dashboard". The one you are on is dark green.
-// It stays in view while scrolling.
-function FarmerNav({ active, onHome, onSubmit, onDashboard }) {
+// The green header at the top of the Farmer Data screens. A home button,
+// then two underlined tabs: "Submit Data" and "Dashboard". Whatever the
+// screen puts between the tags (the year switch and the status buttons on
+// Submit Data) sits inside the same green block.
+function FarmerNav({ active, onHome, onSubmit, onDashboard, children }) {
   const t = useT();
 
   function tab(name, label, onClick) {
@@ -20,12 +21,15 @@ function FarmerNav({ active, onHome, onSubmit, onDashboard }) {
   }
 
   return (
-    <div className="farmer-nav">
-      <button className="nav-home" onClick={onHome} aria-label={t("home")}>
-        <HomeIcon />
-      </button>
-      {tab("submit", t("navSubmit"), onSubmit)}
-      {tab("dashboard", t("navDashboard"), onDashboard)}
+    <div className={`fhead${children ? "" : " fhead-short"}`}>
+      <div className="ftabs">
+        {tab("submit", t("navSubmit"), onSubmit)}
+        {tab("dashboard", t("navDashboard"), onDashboard)}
+        <button className="fhome" onClick={onHome} aria-label={t("home")}>
+          <HomeIcon />
+        </button>
+      </div>
+      {children}
     </div>
   );
 }

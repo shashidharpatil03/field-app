@@ -1,11 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useT } from "./i18n.jsx";
-import CountChip from "./CountChip.jsx";
-import {
-  DONE_COLOR,
-  DROPPED_COLOR,
-  REMAINING_COLOR,
-} from "./ProgressTracker.jsx";
 
 // A number that counts up to its value (a short 0.5 second animation).
 // Phones set to "reduce motion" get the number straight away.
@@ -43,71 +37,69 @@ export function Num({ value, decimals = 0 }) {
   return typeof value === "number" ? shown.toFixed(decimals) : "–";
 }
 
-const NEW_COLOR = "#45639e";
-
-// The first card of the dashboard, laid out like a learning group card:
-// this season's farmers as the big number, then four chips. Continued and
-// newly added (in the green band) add up to the big number; dropped out and
-// still to update are last year's farmers who are not in it.
+// The first card of the dashboard. The big number is this season's farmers,
+// and right under it you can see how it adds up: continued + newly added.
+// Below are last year's farmers who are not in it: still to update and
+// dropped out. Every figure can be tapped to see those farmers.
 function FarmersCard({ data, onOpen }) {
   const t = useT();
   const year = data?.this_year;
   const last = data?.last_year;
 
   return (
-    <div className="lgc dash-card">
-      <button
-        className="lgc-main"
-        onClick={() => onOpen({ season: "this_year" })}
-      >
-        <span className="lgc-text">
-          <span className="lgc-code">{t("dashTitle")}</span>
-          <span className="lgc-season">
-            {t("dashSeason", { season: data ? data.season.label : "" })}
+    <div className="dash-hero-wrap">
+      <div className="dash-hero">
+        <button
+          className="dash-hero-top"
+          onClick={() => onOpen({ season: "this_year" })}
+        >
+          <span className="dash-hero-title">
+            {t("thisYearTitle", { season: data ? data.season.label : "" })}
           </span>
-        </span>
-        <span className="lgc-total">
-          <span className="lgc-number">
+          <span className="dash-hero-number">
             <Num value={year?.total} />
           </span>
-        </span>
-      </button>
-      {year && last && (
-        <div>
-          <div className="lgc-band">
-            <CountChip
-              color={DONE_COLOR}
-              season
-              blue
-              label={t("statusContinued")}
-              value={year.continued}
-              onPick={() => onOpen({ season: "continued" })}
-            />
-            <CountChip
-              color={NEW_COLOR}
-              season
-              label={t("statusNew")}
-              value={year.new}
-              onPick={() => onOpen({ season: "new" })}
-            />
-          </div>
-          <div className="lgc-rest">
-            <CountChip
-              color={DROPPED_COLOR}
-              label={t("droppedOut")}
-              value={last.dropped}
-              onPick={() => onOpen({ season: "dropped" })}
-            />
-            <CountChip
-              color={REMAINING_COLOR}
-              label={t("statusToUpdate")}
-              value={last.to_update}
-              urgent
-              onPick={() => onOpen({ season: "to_update" })}
-            />
-          </div>
+        </button>
+        <div className="dash-hero-sum">
+          <button
+            className="dash-hero-tile"
+            disabled={!year || year.continued === 0}
+            onClick={() => onOpen({ season: "continued" })}
+          >
+            <span>{t("statusContinued")}</span>
+            <b>{year ? year.continued : "–"}</b>
+          </button>
+          <span className="dash-hero-plus" aria-hidden="true">
+            +
+          </span>
+          <button
+            className="dash-hero-tile"
+            disabled={!year || year.new === 0}
+            onClick={() => onOpen({ season: "new" })}
+          >
+            <span>{t("statusNew")}</span>
+            <b>{year ? year.new : "–"}</b>
+          </button>
         </div>
-      )}
+      </div>
+
+      <div className="dash-pair">
+        <button
+          className="to-update"
+          disabled={!last || last.to_update === 0}
+          onClick={() => onOpen({ season: "to_update" })}
+        >
+          <span>{t("statusToUpdate")}</span>
+          <b>{last ? last.to_update : "–"}</b>
+        </button>
+        <button
+          disabled={!last || last.dropped === 0}
+          onClick={() => onOpen({ season: "dropped" })}
+        >
+          <span>{t("droppedOut")}</span>
+          <b>{last ? last.dropped : "–"}</b>
+        </button>
+      </div>
     </div>
   );
 }

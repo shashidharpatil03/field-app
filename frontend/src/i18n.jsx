@@ -136,6 +136,7 @@ export const translations = {
     lgThisSeason: "{n} farmers this season",
     lgFarmersLabel: "farmers this season",
     clearFilters: "Clear filters",
+    done: "Done",
     chooseGroupToRegister: "Choose the group to register the farmer in",
     chooseGroupOption: "Choose a group...",
     listOffline:
@@ -161,6 +162,7 @@ export const translations = {
     upToDate: "✓ Up to date",
     navDashboard: "Dashboard",
     navSubmit: "Submit Data",
+    lastYearShort: "Last year",
     lastYearData: "Last year's Farmer Data",
     thisYearData: "Farmer Data {season}",
     allThisYear: "All this year",
@@ -405,6 +407,7 @@ export const translations = {
     lgThisSeason: "या हंगामातील {n} शेतकरी",
     lgFarmersLabel: "या हंगामातील शेतकरी",
     clearFilters: "फिल्टर काढा",
+    done: "झाले",
     chooseGroupToRegister: "शेतकऱ्याची नोंदणी कोणत्या गटात करायची ते निवडा",
     chooseGroupOption: "गट निवडा...",
     listOffline:
@@ -430,6 +433,7 @@ export const translations = {
     upToDate: "✓ सर्व अद्ययावत",
     navDashboard: "डॅशबोर्ड",
     navSubmit: "माहिती भरा",
+    lastYearShort: "मागील वर्ष",
     lastYearData: "मागील वर्षाची शेतकरी माहिती",
     thisYearData: "शेतकरी माहिती {season}",
     allThisYear: "या वर्षीचे सर्व",

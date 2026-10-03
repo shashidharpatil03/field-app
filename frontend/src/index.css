@@ -16,17 +16,17 @@
 
   /* How the app uses them. Text is Deep Blue (13:1 on Fibre), buttons are
      Deep Green, headings a darker Soil so they stay readable in sunlight. */
-  --bg: #fbfaf6;
+  --bg: #eef6f3;
   --card: #ffffff;
-  --text: var(--deep-blue);
+  --text: #10332e;
   --muted: #4a5d70;
   --border: #8a7a66;
   --border-soft: #d6cfc0;
-  --border-card: #cfc6b4;
+  --border-card: #d5e6e1;
   --shadow: 0 2px 8px rgba(15, 43, 64, 0.1);
-  --primary: var(--deep-green);
+  --primary: #0a7a6c;
   --primary-text: #ffffff;
-  --heading: #6f4130;
+  --heading: #0a5a52;
   --danger: #a31515;
   --ok-bg: var(--fresh-green);
   --ok-text: #0c3b2a;
@@ -2302,154 +2302,176 @@ button.lgc-total-btn {
   grid-column: 1 / -1;
 }
 
-/* ---- Submit Data (first screen of Farmer Data) ------------------------ */
-
-/* Two big top buttons: Submit Data and Dashboard. */
-.farmer-nav button {
-  min-height: 52px;
-  font-size: 16px;
-  font-weight: 700;
+/* ---- Green header of Farmer Data ------------------------------------- */
+.fhead {
+  background: linear-gradient(160deg, #0a5a52 0%, #1f9a86 100%);
+  border-radius: 26px;
+  padding: 14px 14px 14px;
+  margin-bottom: 14px;
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(10, 90, 82, 0.22);
 }
 
-.year-buttons {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 10px;
+.fhead-short {
+  padding-bottom: 10px;
 }
 
-.year-buttons button {
-  min-height: 52px;
+.ftabs {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-bottom: 14px;
+}
+
+.ftabs button {
   margin: 0;
-  padding: 6px 8px;
+  min-height: 44px;
+  padding: 0 0 4px;
+  border: 0;
+  border-bottom: 4px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ftabs button.active {
+  color: #fff;
+  border-bottom-color: #ffb547;
+}
+
+.ftabs .fhome {
+  margin-left: auto;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Last year / 2026-27 switch */
+.ftoggle {
+  display: flex;
+  gap: 0;
+  padding: 4px;
+  margin-bottom: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.ftoggle button {
+  flex: 1;
+  margin: 0;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
   font-size: 15px;
   font-weight: 700;
-  line-height: 1.2;
-  background: var(--card);
-  border: 2px solid var(--border-card);
-  border-radius: 14px;
-  color: var(--muted);
 }
 
-.year-buttons button.sel {
-  background: var(--heading);
-  border-color: #4d2c20;
-  color: #fff;
+.ftoggle button.on {
+  background: #fff;
+  color: #0a5a52;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
 }
 
-/* Three status buttons with the number inside. */
-.status-buttons {
+/* The three status buttons, with the number inside. */
+.fstats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  margin-bottom: 10px;
 }
 
-.status-btn {
+.fstats button {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
   min-height: 78px;
   margin: 0;
-  padding: 6px 2px;
-  border: 2px solid var(--border-card);
-  border-radius: 14px;
-  background: var(--card);
+  padding: 8px 2px;
+  border: 0;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12.5px;
+  font-weight: 700;
   line-height: 1.15;
+  text-align: center;
   min-width: 0;
 }
 
-.status-num {
-  font-family: Poppins, sans-serif;
-  font-size: 26px;
+.fstats button b {
+  font-family: var(--font-display);
+  font-size: 25px;
   font-weight: 700;
+  line-height: 1.15;
+  color: #fff;
 }
 
-.status-label {
-  font-size: 13px;
-  font-weight: 600;
-  text-align: center;
+.fstats button.on {
+  background: #fff;
 }
 
-/* The same three colour families as the dashboard chips: pale green (this
-   season), pale red (still to update) and pale tan (dropped). The chosen
-   button keeps its pale colour and gets a darker border and bold text. */
-.status-btn.green {
-  background: #cfe9dc;
-  border-color: #cfe9dc;
-  color: #2f7a58;
+.fstats button.on b {
+  color: inherit;
 }
 
-.status-btn.green.sel {
-  border-color: #14694a;
-  color: #14694a;
+.fstats button.on.o {
+  color: #c2540a;
 }
 
-.status-btn.blue {
-  background: #d9e3f5;
-  border-color: #d9e3f5;
-  color: #2c4a8a;
+.fstats button.on.b {
+  color: #2e4fc4;
 }
 
-.status-btn.blue.sel {
-  border-color: #45639e;
-  color: #2c4a8a;
+.fstats button.on.g {
+  color: #0a7a6c;
 }
 
-.status-btn.red {
-  background: #f8dcdc;
-  border-color: #f8dcdc;
-  color: #a04545;
+.fstats button.on.s {
+  color: #5d6b68;
 }
 
-.status-btn.red.sel {
-  border-color: #a31515;
-  color: #a31515;
-}
-
-.status-btn.tan {
-  background: #f1ece0;
-  border-color: #f1ece0;
-  color: #7a6a4d;
-}
-
-.status-btn.tan.sel {
-  border-color: #8a7a66;
-  color: #5f5345;
-}
-
-.status-btn.sel .status-label {
-  font-weight: 800;
-}
-
-.status-btn.sel {
-  box-shadow: 0 2px 0 currentColor;
-}
-
+/* ---- Submit Data list ------------------------------------------------- */
 .submit-search {
   width: 100%;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  border: 0;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(10, 90, 82, 0.08);
 }
 
 .lg-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 4px 2px 8px;
-  font-family: Poppins, sans-serif;
+  margin: 2px 4px 6px;
+  color: #4a7a72;
+  font-size: 14px;
 }
 
 .lg-toggle-all {
   margin: 0;
-  min-height: 40px;
-  padding: 0 14px;
-  border-radius: 999px;
-  border: 2px solid var(--border-card);
-  background: var(--card);
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: #0a7a6c;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .submit-lgs {
@@ -2459,43 +2481,24 @@ button.lgc-total-btn {
 }
 
 .sd-lg {
-  background: var(--card);
-  border: 1.5px solid var(--border-card);
-  border-left: 6px solid var(--deep-green);
-  border-radius: 14px;
-  margin-bottom: 10px;
-  box-shadow: var(--shadow);
-  overflow: hidden;
-}
-
-.sd-lg {
-  border-left-color: #7cbf9f;
-}
-
-.sd-lg.red {
-  border-left-color: #e39a9a;
-}
-
-.sd-lg.tan {
-  border-left-color: #cdbfa5;
+  margin-bottom: 6px;
 }
 
 .sd-lg-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px 6px 0;
 }
 
 .sd-lg-main {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
-  min-height: 52px;
+  min-height: 48px;
   margin: 0;
-  padding: 4px 6px 4px 10px;
+  padding: 0 4px;
   border: 0;
   background: transparent;
   text-align: left;
@@ -2503,30 +2506,29 @@ button.lgc-total-btn {
 
 .sd-chevron {
   flex: none;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: #efeadc;
-  font-size: 13px;
+  color: #7aa59d;
+  font-size: 11px;
 }
 
 .sd-lg-text {
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  gap: 8px;
   min-width: 0;
 }
 
 .sd-lg-code {
-  font-family: Poppins, sans-serif;
+  font-family: var(--font-display);
   font-size: 17px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .sd-lg-sub {
-  color: var(--heading);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #5f8a82;
   font-size: 13px;
   font-weight: 600;
 }
@@ -2536,9 +2538,9 @@ button.lgc-total-btn {
   margin: 0;
   min-height: 40px;
   padding: 0 12px;
-  border-radius: 999px;
   border: 0;
-  background: var(--deep-green);
+  border-radius: 999px;
+  background: #0a7a6c;
   color: #fff;
   font-size: 13px;
   font-weight: 700;
@@ -2547,61 +2549,231 @@ button.lgc-total-btn {
 
 .sd-count {
   flex: none;
-  min-width: 36px;
-  height: 32px;
-  padding: 0 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  min-width: 30px;
+  padding: 3px 9px;
   border-radius: 999px;
-  background: var(--deep-green);
+  background: #0a8f7c;
   color: #fff;
-  font-family: Poppins, sans-serif;
-  font-size: 16px;
+  font-family: var(--font-display);
+  font-size: 14px;
   font-weight: 700;
+  text-align: center;
 }
 
-.sd-count.red {
-  background: #a31515;
+.sd-count.o {
+  background: #e8731a;
 }
 
-.sd-count.tan {
-  background: #8a7a66;
+.sd-count.b {
+  background: #2e6fe0;
+}
+
+.sd-count.s {
+  background: #8a9996;
 }
 
 .sd-farmers {
   list-style: none;
   margin: 0;
-  padding: 0 10px 4px;
+  padding: 0;
 }
 
-/* Farmer rows inside a group have no coloured bar on the left; only the
-   group itself has one. */
-.sd-farmers .farmer-row > div {
-  padding-left: 12px;
+.sd-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 6px 10px 6px 6px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(10, 90, 82, 0.07);
 }
 
-.sd-farmers .farmer-row > div::before {
-  display: none;
+.sd-name {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+  min-height: 52px;
+  margin: 0;
+  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  color: var(--text);
+}
+
+.sd-name strong {
+  font-size: 17px;
+}
+
+.sd-name span {
+  color: #7aa59d;
+  font-size: 12.5px;
+  font-weight: 700;
 }
 
 .sd-bring {
-  align-self: center;
   flex: none;
   margin: 0;
-  min-height: 40px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 2px solid var(--deep-green);
-  background: var(--card);
-  color: var(--deep-green);
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: #dff2ee;
+  color: #0a7a6c;
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
 }
 
+.sd-call {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: #0a7a6c;
+  color: #fff;
+}
+
 .sd-empty {
-  padding: 10px 14px;
+  padding: 8px 6px 12px;
   color: var(--muted);
-  border-top: 1px solid #ece6d6;
+  list-style: none;
+}
+
+/* ---- Dashboard -------------------------------------------------------- */
+.dash-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 52px;
+  margin: 0 0 12px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 16px;
+  background: #fff;
+  color: var(--text);
+  font-size: 15px;
+  box-shadow: 0 2px 8px rgba(10, 90, 82, 0.08);
+}
+
+.dash-filter-row span {
+  color: #7aa59d;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dash-hero {
+  margin-bottom: 12px;
+  padding: 18px 18px 16px;
+  border-radius: 26px;
+  background: linear-gradient(150deg, #0a4f48, #0f7566);
+  color: #fff;
+}
+
+.dash-hero-top {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  text-align: left;
+}
+
+.dash-hero-title {
+  display: block;
+  opacity: 0.8;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.dash-hero-number {
+  display: block;
+  margin: 2px 0 12px;
+  font-family: var(--font-display);
+  font-size: 54px;
+  font-weight: 700;
+  line-height: 1.05;
+}
+
+.dash-hero-sum {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dash-hero-tile {
+  flex: 1;
+  margin: 0;
+  min-height: 64px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dash-hero-tile:disabled {
+  opacity: 0.6;
+}
+
+.dash-hero-tile b {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 22px;
+}
+
+.dash-hero-plus {
+  flex: none;
+  font-size: 20px;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+.dash-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.dash-pair button {
+  margin: 0;
+  min-height: 74px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 18px;
+  background: #fff;
+  color: #5f8a82;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(10, 90, 82, 0.07);
+}
+
+.dash-pair button b {
+  display: block;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 26px;
+}
+
+.dash-pair button.to-update b {
+  color: #e8731a;
+}
+
+.dash-pair button:disabled {
+  opacity: 0.7;
 }

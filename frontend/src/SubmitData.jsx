@@ -25,21 +25,21 @@ const BUTTONS = {
       season: "to_update",
       label: "statusToUpdate",
       count: "to_update_count",
-      tone: "red",
+      tone: "o",
     },
     {
       key: "continued",
       season: "continued",
       label: "statusContinued",
       count: "season_continued",
-      tone: "blue",
+      tone: "b",
     },
     {
       key: "dropped",
       season: "dropped",
       label: "droppedOut",
       count: "season_dropped",
-      tone: "tan",
+      tone: "s",
     },
   ],
   this: [
@@ -48,39 +48,24 @@ const BUTTONS = {
       season: "new",
       label: "statusNew",
       count: "new_count",
-      tone: "green",
+      tone: "g",
     },
     {
       key: "continued",
       season: "continued",
       label: "statusContinued",
       count: "season_continued",
-      tone: "blue",
+      tone: "b",
     },
     {
       key: "all",
       season: "this_year",
       label: "allThisYear",
       count: "season_farmers",
-      tone: "green",
+      tone: "g",
     },
   ],
 };
-
-// One label for where the farmer stands this season.
-function badge(f, t) {
-  const labels = {
-    new: ["continuing", t("statusNew")],
-    continued: ["blue", t("statusContinued")],
-    to_update: ["todo", t("statusToUpdate")],
-    dropped: ["dropped_out", t("droppedOut")],
-  };
-  const found = labels[f.season_status];
-  if (found) {
-    return <span className={`badge ${found[0]}`}>{found[1]}</span>;
-  }
-  return <span className="badge continuing">{t("statusContinuing")}</span>;
-}
 
 // The first screen of Farmer Data. Pick last year's or this year's
 // farmers, pick a status, and see the farmers under their learning group.
@@ -290,7 +275,44 @@ function SubmitData({
 
   return (
     <div className="page">
-      <FarmerNav active="submit" {...nav} />
+      <FarmerNav active="submit" {...nav}>
+        <div className="ftoggle" role="group">
+          <button
+            className={view.year === "last" ? "on" : ""}
+            aria-pressed={view.year === "last"}
+            onClick={() => chooseYear("last")}
+          >
+            {t("lastYearShort")}
+          </button>
+          <button
+            className={view.year === "this" ? "on" : ""}
+            aria-pressed={view.year === "this"}
+            onClick={() => chooseYear("this")}
+          >
+            {seasonLabel()}
+          </button>
+        </div>
+
+        <div className="fstats">
+          {buttons.map((b) => (
+            <button
+              key={b.key}
+              className={`${b.tone}${current.key === b.key ? " on" : ""}`}
+              aria-pressed={current.key === b.key}
+              onClick={() => setView({ ...view, status: b.key })}
+            >
+              <b>
+                {filtersOn
+                  ? (counts[b.key] ?? "–")
+                  : hasNumbers
+                    ? totalFor(b)
+                    : "–"}
+              </b>
+              {t(b.label)}
+            </button>
+          ))}
+        </div>
+      </FarmerNav>
 
       {message && <p className="message">{message}</p>}
 
@@ -299,45 +321,6 @@ function SubmitData({
           {t("offlineNote", { time: formatWhen(savedCopyFrom) })}
         </p>
       )}
-
-      <div className="year-buttons">
-        <button
-          className={view.year === "last" ? "sel" : ""}
-          aria-pressed={view.year === "last"}
-          onClick={() => chooseYear("last")}
-        >
-          {t("lastYearData")}
-        </button>
-        <button
-          className={view.year === "this" ? "sel" : ""}
-          aria-pressed={view.year === "this"}
-          onClick={() => chooseYear("this")}
-        >
-          {t("thisYearData", { season: seasonLabel() })}
-        </button>
-      </div>
-
-      <div className="status-buttons">
-        {buttons.map((b) => (
-          <button
-            key={b.key}
-            className={`status-btn ${b.tone}${
-              current.key === b.key ? " sel" : ""
-            }`}
-            aria-pressed={current.key === b.key}
-            onClick={() => setView({ ...view, status: b.key })}
-          >
-            <span className="status-num">
-              {filtersOn
-                ? (counts[b.key] ?? "–")
-                : hasNumbers
-                  ? totalFor(b)
-                  : "–"}
-            </span>
-            <span className="status-label">{t(b.label)}</span>
-          </button>
-        ))}
-      </div>
 
       <input
         className="submit-search"
@@ -392,7 +375,7 @@ function SubmitData({
           const isClosed = !!closed[lg.id];
           const inLg = farmers.filter((f) => f.lg_id === lg.id);
           return (
-            <li key={lg.id} className={`sd-lg ${current.tone}`}>
+            <li key={lg.id} className="sd-lg">
               <div className="sd-lg-head">
                 <button
                   className="sd-lg-main"
@@ -424,46 +407,33 @@ function SubmitData({
               </div>
 
               {!isClosed && (
-                <ul className="sd-farmers farmer-list">
+                <ul className="sd-farmers">
                   {inLg.map((f) => (
-                    <li className="farmer-row" key={f.id}>
-                      <div className={`st-${f.season_status}`}>
+                    <li className="sd-row" key={f.id}>
+                      <button
+                        className="sd-name"
+                        onClick={() => onOpenFarmer(f.id)}
+                      >
+                        <strong>{f.name}</strong>
+                        <span>{f.farmer_code}</span>
+                      </button>
+                      {f.season_status === "dropped" && (
                         <button
-                          className="frow-top"
-                          onClick={() => onOpenFarmer(f.id)}
+                          className="sd-bring"
+                          onClick={() => onOpenFarmer(f.id, true)}
                         >
-                          <span className="frow-code">{f.farmer_code}</span>
-                          <strong>{f.name}</strong>
+                          ↩ {t("bringBack")}
                         </button>
-                        <div className="frow-bottom">
-                          <button
-                            className="frow-open"
-                            onClick={() => onOpenFarmer(f.id)}
-                          >
-                            <span className="frow-village">{f.village}</span>
-                            {badge(f, t)}
-                          </button>
-                          {f.season_status === "dropped" && (
-                            <button
-                              className="sd-bring"
-                              onClick={() => onOpenFarmer(f.id, true)}
-                            >
-                              ↩ {t("bringBack")}
-                            </button>
-                          )}
-                          {f.mobile ? (
-                            <a
-                              className="call"
-                              href={`tel:${f.mobile}`}
-                              aria-label={t("callFarmer", { name: f.name })}
-                            >
-                              <PhoneIcon /> {f.mobile}
-                            </a>
-                          ) : (
-                            <span className="no-mobile">{t("noMobile")}</span>
-                          )}
-                        </div>
-                      </div>
+                      )}
+                      {f.mobile && (
+                        <a
+                          className="sd-call"
+                          href={`tel:${f.mobile}`}
+                          aria-label={t("callFarmer", { name: f.name })}
+                        >
+                          <PhoneIcon />
+                        </a>
+                      )}
                     </li>
                   ))}
                   {!loading && inLg.length === 0 && (
