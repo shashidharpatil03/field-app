@@ -78,6 +78,7 @@ function FarmersCard({ data, onOpen }) {
             <CountChip
               color={DONE_COLOR}
               season
+              blue
               label={t("statusContinued")}
               value={year.continued}
               onPick={() => onOpen({ season: "continued" })}

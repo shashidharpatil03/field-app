@@ -1672,6 +1672,16 @@ button.danger.solid {
 }
 
 /* tan: dropped out */
+.lgc-chip.blue {
+  background: #d9e3f5;
+  border-color: #d9e3f5;
+  color: #2c4a8a;
+}
+
+.lgc-chip.blue .lgc-chip-num {
+  background: #45639e;
+}
+
 .lgc-chip.quiet {
   background: #f1ece0;
   border-color: #f1ece0;
@@ -1906,6 +1916,12 @@ button.danger.solid {
 
 .frow-bottom .no-mobile {
   padding: 0;
+}
+
+.badge.blue {
+  background: #d9e3f5;
+  color: #2c4a8a;
+  border-color: #b9c9ea;
 }
 
 .badge.fnew {
@@ -2275,6 +2291,317 @@ button.lgc-total-btn {
   color: var(--text);
 }
 
-.dash-filter {
-  margin: 4px 0 12px;
+.dash-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 10px;
+  margin: 4px 0 8px;
+}
+
+.dash-filters .dash-ff {
+  grid-column: 1 / -1;
+}
+
+/* ---- Submit Data (first screen of Farmer Data) ------------------------ */
+
+/* Two big top buttons: Submit Data and Dashboard. */
+.farmer-nav button {
+  min-height: 52px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.year-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.year-buttons button {
+  min-height: 52px;
+  margin: 0;
+  padding: 6px 8px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  background: var(--card);
+  border: 2px solid var(--border-card);
+  border-radius: 14px;
+  color: var(--muted);
+}
+
+.year-buttons button.sel {
+  background: var(--heading);
+  border-color: #4d2c20;
+  color: #fff;
+}
+
+/* Three status buttons with the number inside. */
+.status-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.status-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 78px;
+  margin: 0;
+  padding: 6px 2px;
+  border: 2px solid var(--border-card);
+  border-radius: 14px;
+  background: var(--card);
+  line-height: 1.15;
+  min-width: 0;
+}
+
+.status-num {
+  font-family: Poppins, sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.status-label {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* The same three colour families as the dashboard chips: pale green (this
+   season), pale red (still to update) and pale tan (dropped). The chosen
+   button keeps its pale colour and gets a darker border and bold text. */
+.status-btn.green {
+  background: #cfe9dc;
+  border-color: #cfe9dc;
+  color: #2f7a58;
+}
+
+.status-btn.green.sel {
+  border-color: #14694a;
+  color: #14694a;
+}
+
+.status-btn.blue {
+  background: #d9e3f5;
+  border-color: #d9e3f5;
+  color: #2c4a8a;
+}
+
+.status-btn.blue.sel {
+  border-color: #45639e;
+  color: #2c4a8a;
+}
+
+.status-btn.red {
+  background: #f8dcdc;
+  border-color: #f8dcdc;
+  color: #a04545;
+}
+
+.status-btn.red.sel {
+  border-color: #a31515;
+  color: #a31515;
+}
+
+.status-btn.tan {
+  background: #f1ece0;
+  border-color: #f1ece0;
+  color: #7a6a4d;
+}
+
+.status-btn.tan.sel {
+  border-color: #8a7a66;
+  color: #5f5345;
+}
+
+.status-btn.sel .status-label {
+  font-weight: 800;
+}
+
+.status-btn.sel {
+  box-shadow: 0 2px 0 currentColor;
+}
+
+.submit-search {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.lg-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 2px 8px;
+  font-family: Poppins, sans-serif;
+}
+
+.lg-toggle-all {
+  margin: 0;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 2px solid var(--border-card);
+  background: var(--card);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.submit-lgs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sd-lg {
+  background: var(--card);
+  border: 1.5px solid var(--border-card);
+  border-left: 6px solid var(--deep-green);
+  border-radius: 14px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.sd-lg {
+  border-left-color: #7cbf9f;
+}
+
+.sd-lg.red {
+  border-left-color: #e39a9a;
+}
+
+.sd-lg.tan {
+  border-left-color: #cdbfa5;
+}
+
+.sd-lg-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 0;
+}
+
+.sd-lg-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 52px;
+  margin: 0;
+  padding: 4px 6px 4px 10px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.sd-chevron {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #efeadc;
+  font-size: 13px;
+}
+
+.sd-lg-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sd-lg-code {
+  font-family: Poppins, sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.sd-lg-sub {
+  color: var(--heading);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sd-add {
+  flex: none;
+  margin: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--deep-green);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sd-count {
+  flex: none;
+  min-width: 36px;
+  height: 32px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--deep-green);
+  color: #fff;
+  font-family: Poppins, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.sd-count.red {
+  background: #a31515;
+}
+
+.sd-count.tan {
+  background: #8a7a66;
+}
+
+.sd-farmers {
+  list-style: none;
+  margin: 0;
+  padding: 0 10px 4px;
+}
+
+/* Farmer rows inside a group have no coloured bar on the left; only the
+   group itself has one. */
+.sd-farmers .farmer-row > div {
+  padding-left: 12px;
+}
+
+.sd-farmers .farmer-row > div::before {
+  display: none;
+}
+
+.sd-bring {
+  align-self: center;
+  flex: none;
+  margin: 0;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 2px solid var(--deep-green);
+  background: var(--card);
+  color: var(--deep-green);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sd-empty {
+  padding: 10px 14px;
+  color: var(--muted);
+  border-top: 1px solid #ece6d6;
 }

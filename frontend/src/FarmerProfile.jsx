@@ -48,15 +48,15 @@ const statusText = {
 };
 const statusBadge = {
   new: "continuing",
-  continued: "continuing",
+  continued: "blue",
   to_update: "todo",
   dropped: "dropped_out",
 };
 
-function FarmerProfile({ farmerId, onBack, onDeleted }) {
+function FarmerProfile({ farmerId, startEditing = false, onBack, onDeleted }) {
   const [farmer, setFarmer] = useState(null);
   const [changes, setChanges] = useState([]);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(startEditing);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState("");
   const [confirming, setConfirming] = useState(false);

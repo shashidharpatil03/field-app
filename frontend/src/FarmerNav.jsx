@@ -1,10 +1,10 @@
 import { useT } from "./i18n.jsx";
 import { HomeIcon } from "./icons.jsx";
 
-// Buttons shown at the top of the Farmer Data screens: a home icon, then
-// Dashboard, LGs and Farmers. The screen you are on is highlighted. The bar
-// stays in view while scrolling.
-function FarmerNav({ active, onHome, onDashboard, onLgs, onAll }) {
+// The bar at the top of the Farmer Data screens: a home icon, then two big
+// buttons, "Submit Data" and "Dashboard". The one you are on is dark green.
+// It stays in view while scrolling.
+function FarmerNav({ active, onHome, onSubmit, onDashboard }) {
   const t = useT();
 
   function tab(name, label, onClick) {
@@ -24,9 +24,8 @@ function FarmerNav({ active, onHome, onDashboard, onLgs, onAll }) {
       <button className="nav-home" onClick={onHome} aria-label={t("home")}>
         <HomeIcon />
       </button>
+      {tab("submit", t("navSubmit"), onSubmit)}
       {tab("dashboard", t("navDashboard"), onDashboard)}
-      {tab("lgs", t("navLgs"), onLgs)}
-      {tab("farmers", t("navFarmers"), onAll)}
     </div>
   );
 }

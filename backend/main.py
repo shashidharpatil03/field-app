@@ -682,15 +682,24 @@ DASHBOARD_FROM = """
 
 @app.get("/farmers/dashboard")
 def farmers_dashboard(
-    lg_id: Optional[int] = None, user: dict = Depends(current_user)
+    lg_id: Optional[int] = None,
+    village_id: Optional[int] = None,
+    ff_id: Optional[int] = None,
+    user: dict = Depends(current_user),
 ):
-    """The figures for everything this person can see, or for one learning
-    group when lg_id is given."""
+    """The figures for everything this person can see, or only for one
+    learning group, village or facilitator when those are given."""
     scope = [user["role"], user["pu_id"], user["role"], user["ff_id"]]
     from_sql = DASHBOARD_FROM
     if lg_id is not None:
         from_sql += " AND farmers.lg_id = ?"
         scope.append(lg_id)
+    if village_id is not None:
+        from_sql += " AND learning_groups.village_id = ?"
+        scope.append(village_id)
+    if ff_id is not None:
+        from_sql += " AND assignments.ff_id = ?"
+        scope.append(ff_id)
     first_day = season_start(date.today())
     start = first_day.isoformat()
     parts = season_sql(start)

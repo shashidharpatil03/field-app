@@ -284,7 +284,7 @@ function FarmerList({
 
   return (
     <div className="page">
-      <FarmerNav active="farmers" {...nav} />
+      <FarmerNav active="dashboard" {...nav} />
       {message && <p className="message">{message}</p>}
       {localMessage && <p className="message">{localMessage}</p>}
 

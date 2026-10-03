@@ -11,8 +11,8 @@ import {
 } from "./sentHelpers.js";
 
 const FLAGS = {
-  new: ["fnew", "statusNew"],
-  continued: ["continuing", "statusContinued"],
+  new: ["continuing", "statusNew"],
+  continued: ["blue", "statusContinued"],
   to_update: ["todo", "statusToUpdate"],
   dropped: ["dropped_out", "droppedOut"],
 };

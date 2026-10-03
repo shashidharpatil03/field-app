@@ -1,35 +1,49 @@
 import { useState, useEffect } from "react";
 import FarmerProfile from "./FarmerProfile.jsx";
 import RegisterFarmer from "./RegisterFarmer.jsx";
-import LearningGroups from "./LearningGroups.jsx";
+import SubmitData from "./SubmitData.jsx";
 import Dashboard from "./Dashboard.jsx";
-import FarmerList from "./FarmerList.jsx";
 import { apiFetch } from "./api.js";
 import { saveLgCache, readLgCache } from "./offline.js";
 
+// What the dashboard can narrow the list by. "" means not narrowed.
 const NO_FILTERS = {
   villageId: "",
   lgId: "",
   ffId: "",
-  q: "",
-  status: "all",
   gender: "",
   growing: "",
   water: "",
-  season: "",
 };
 
-// Farmer Data has three screens: the dashboard, the list of learning groups,
-// and the list of farmers (with filters). This component decides which one
-// to show, and keeps what they need.
+// Which year button and which status button a dashboard figure belongs to.
+const SEASON_TO_BUTTON = {
+  this_year: { year: "this", status: "all" },
+  continued: { year: "this", status: "continued" },
+  new: { year: "this", status: "new" },
+  dropped: { year: "last", status: "dropped" },
+  to_update: { year: "last", status: "to_update" },
+};
+
+// Farmer Data has two main screens: Submit Data (the farmers of each
+// learning group) and the Dashboard. Tapping a figure on the dashboard opens
+// the farmer list with filters. This component decides which one to show,
+// and keeps what they need.
 function FarmerData({ onHome, user }) {
   const isManager = user.role === "pu_manager";
   const [lgs, setLgs] = useState([]);
   const [savedCopyFrom, setSavedCopyFrom] = useState(null);
-  const [screen, setScreen] = useState("dashboard");
-  const [filters, setFilters] = useState(NO_FILTERS);
+  const [screen, setScreen] = useState("submit");
+  // What Submit Data shows: which year, which status, which groups are folded.
+  const [submitView, setSubmitView] = useState({
+    year: "last",
+    status: "to_update",
+    closed: {},
+    filters: NO_FILTERS,
+  });
   const [message, setMessage] = useState("");
   const [profileId, setProfileId] = useState(null);
+  const [profileEdit, setProfileEdit] = useState(false);
   const [registerLg, setRegisterLg] = useState(null);
   const [registerDraft, setRegisterDraft] = useState(null);
 
@@ -61,25 +75,24 @@ function FarmerData({ onHome, user }) {
     loadLgs();
   }, []);
 
-  // Opens one group's farmers. `extra` can narrow it further, for example
-  // { season: "to_update" } when the "Still to update" chip is tapped.
-  function openGroup(lg, extra = {}) {
-    setMessage("");
-    setFilters({ ...NO_FILTERS, lgId: String(lg.id), ...extra });
-    setScreen("farmers");
-  }
-
-  // Opens the farmer list with some filters already set, for example
-  // { gender: "Female" } when the women card is tapped.
+  // Opens Submit Data narrowed down, for example { gender: "Female" } when
+  // the women figure on the dashboard is tapped. `season` picks the year
+  // and status buttons; the rest become chips under the search bar.
   function openFarmers(extra = {}) {
+    const { season, ...rest } = extra;
+    const button = SEASON_TO_BUTTON[season] || SEASON_TO_BUTTON.this_year;
     setMessage("");
-    setFilters({ ...NO_FILTERS, ...extra });
-    setScreen("farmers");
+    setSubmitView({
+      ...button,
+      closed: {},
+      filters: { ...NO_FILTERS, ...rest },
+    });
+    setScreen("submit");
   }
 
-  function showGroups() {
+  function showSubmit() {
     setMessage("");
-    setScreen("groups");
+    setScreen("submit");
     loadLgs();
   }
 
@@ -90,10 +103,14 @@ function FarmerData({ onHome, user }) {
 
   const nav = {
     onHome: onHome,
+    onSubmit: showSubmit,
     onDashboard: showDashboard,
-    onLgs: showGroups,
-    onAll: () => openFarmers(),
   };
+
+  function openProfile(id, edit = false) {
+    setProfileEdit(edit);
+    setProfileId(id);
+  }
 
   function startRegister(lg, draft) {
     setMessage("");
@@ -111,6 +128,7 @@ function FarmerData({ onHome, user }) {
       <div key="profile" className="page">
         <FarmerProfile
           farmerId={profileId}
+          startEditing={profileEdit}
           onBack={() => {
             setProfileId(null);
             loadLgs();
@@ -118,7 +136,6 @@ function FarmerData({ onHome, user }) {
           onDeleted={(text) => {
             setProfileId(null);
             setMessage(text);
-            setScreen("farmers");
             loadLgs();
           }}
         />
@@ -137,7 +154,6 @@ function FarmerData({ onHome, user }) {
           onDone={(text) => {
             closeRegister();
             setMessage(text);
-            setScreen("farmers");
             loadLgs();
           }}
         />
@@ -145,37 +161,32 @@ function FarmerData({ onHome, user }) {
     );
   }
 
-  if (screen === "farmers") {
+  if (screen === "dashboard") {
     return (
-      <FarmerList
-        key="farmers"
-        lgs={lgs}
-        filters={filters}
-        setFilters={setFilters}
-        isManager={isManager}
-        message={message}
+      <Dashboard
+        key="dashboard"
         nav={nav}
-        onOpenFarmer={setProfileId}
-        onRegister={startRegister}
-        onChanged={loadLgs}
+        onOpen={openFarmers}
+        lgs={lgs}
+        isManager={isManager}
       />
     );
   }
 
-  if (screen === "groups") {
-    return (
-      <LearningGroups
-        key="groups"
-        lgs={lgs}
-        isManager={isManager}
-        savedCopyFrom={savedCopyFrom}
-        nav={nav}
-        onOpen={openGroup}
-      />
-    );
-  }
-
-  return <Dashboard key="dashboard" nav={nav} onOpen={openFarmers} lgs={lgs} />;
+  return (
+    <SubmitData
+      key="submit"
+      lgs={lgs}
+      isManager={isManager}
+      savedCopyFrom={savedCopyFrom}
+      view={submitView}
+      setView={setSubmitView}
+      message={message}
+      nav={nav}
+      onOpenFarmer={openProfile}
+      onRegister={startRegister}
+    />
+  );
 }
 
 export default FarmerData;
