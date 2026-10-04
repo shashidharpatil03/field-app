@@ -49,7 +49,9 @@ function Login({ onLogin }) {
             <option value="">{t("chooseUserOption")}</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
-                {u.name} · {t(`role_${u.role}`)} · {u.pu_name}
+                {u.name}
+                {u.ff_code ? ` (${u.ff_code})` : ""} · {t(`role_${u.role}`)} ·{" "}
+                {u.pu_name}
               </option>
             ))}
           </select>

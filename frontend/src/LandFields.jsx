@@ -1,4 +1,5 @@
 import { WATER_REGIMES } from "./farmerRules.js";
+import Required from "./Required.jsx";
 
 // The three land questions, shared by the register and edit forms.
 function LandFields({
@@ -17,7 +18,10 @@ function LandFields({
   return (
     <div>
       <div className="field">
-        <label htmlFor={`${idPrefix}-total`}>Total landholding (acres)</label>
+        <label htmlFor={`${idPrefix}-total`}>
+          Total landholding (acres)
+          <Required />
+        </label>
         <input
           id={`${idPrefix}-total`}
           type="text"
@@ -35,6 +39,7 @@ function LandFields({
       <div className="field">
         <label htmlFor={`${idPrefix}-cotton-area`}>
           Area under cotton (acres)
+          {!locked && <Required />}
         </label>
         <input
           id={`${idPrefix}-cotton-area`}
@@ -55,7 +60,10 @@ function LandFields({
       </div>
 
       <div className="field">
-        <label htmlFor={`${idPrefix}-water`}>Water regime</label>
+        <label htmlFor={`${idPrefix}-water`}>
+          Water regime
+          <Required />
+        </label>
         <select
           id={`${idPrefix}-water`}
           value={water}

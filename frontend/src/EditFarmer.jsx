@@ -8,6 +8,7 @@ import {
 } from "./farmerRules.js";
 import LandFields from "./LandFields.jsx";
 import NameFields from "./NameFields.jsx";
+import Required from "./Required.jsx";
 import { apiFetch } from "./api.js";
 
 const DROP_REASONS = [
@@ -19,20 +20,26 @@ const DROP_REASONS = [
 ];
 
 function EditFarmer({ farmer, onCancel, onSaved }) {
+  // A farmer still to be updated: the facilitator must answer these again.
+  const blank = farmer.season_status === "to_update";
   const [first, setFirst] = useState(farmer.first_name ?? "");
   const [middle, setMiddle] = useState(farmer.middle_name ?? "");
   const [last, setLast] = useState(farmer.last_name ?? "");
   const [gender, setGender] = useState(farmer.gender);
   const [growingCotton, setGrowingCotton] = useState(
-    farmer.growing_cotton ? "yes" : "no",
+    blank ? "" : farmer.growing_cotton ? "yes" : "no",
   );
   const [mobile, setMobile] = useState(farmer.mobile ?? "");
   const [total, setTotal] = useState(acresText(farmer.total_landholding));
   const [cotton, setCotton] = useState(
-    farmer.growing_cotton ? acresText(farmer.area_under_cotton) : "0",
+    blank
+      ? ""
+      : farmer.growing_cotton
+        ? acresText(farmer.area_under_cotton)
+        : "0",
   );
   const [water, setWater] = useState(farmer.water_regime ?? "");
-  const [status, setStatus] = useState(farmer.participation);
+  const [status, setStatus] = useState(blank ? "" : farmer.participation);
   const [dropReason, setDropReason] = useState("");
   const [asking, setAsking] = useState(false);
   const [reason, setReason] = useState("");
@@ -53,6 +60,9 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
         water: water,
       },
     );
+    if (status === "") {
+      found.participation = "Please choose the farmer participation";
+    }
     if (status === "dropped_out" && status !== farmer.participation) {
       if (dropReason === "") {
         found.participation = "Please choose a reason for dropping";
@@ -131,7 +141,10 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
       />
 
       <div className="field">
-        <label htmlFor="edit-gender">Gender</label>
+        <label htmlFor="edit-gender">
+          Gender
+          <Required />
+        </label>
         <select
           id="edit-gender"
           value={gender}
@@ -146,7 +159,10 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
       </div>
 
       <div className="field">
-        <label htmlFor="edit-cotton">Growing cotton this season?</label>
+        <label htmlFor="edit-cotton">
+          Growing cotton this season?
+          <Required />
+        </label>
         <select
           id="edit-cotton"
           value={growingCotton}
@@ -156,6 +172,7 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
           }}
           className={errors.growing_cotton ? "has-error" : ""}
         >
+          {blank && <option value="">Choose...</option>}
           <option value="yes">Yes</option>
           <option value="no">No</option>
         </select>
@@ -192,7 +209,10 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
 
       {farmer.season_status !== "new" && (
         <div className="field">
-          <label htmlFor="edit-status">Participation</label>
+          <label htmlFor="edit-status">
+            Farmer Participation
+            <Required />
+          </label>
           <select
             id="edit-status"
             value={status}
@@ -202,6 +222,7 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
             }}
             className={errors.participation ? "has-error" : ""}
           >
+            {blank && <option value="">Choose...</option>}
             <option value="continuing">Continuing</option>
             <option value="dropped_out">Dropped out</option>
           </select>
@@ -271,7 +292,7 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
       ) : (
         <div>
           <button type="submit" disabled={saving}>
-            {saving ? "Saving..." : "Save changes"}
+            {saving ? "Saving..." : "Save"}
           </button>
           <button type="button" onClick={onCancel} disabled={saving}>
             Cancel

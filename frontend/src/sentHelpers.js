@@ -1,4 +1,5 @@
 // Small helpers for the Sent and Incomplete screens.
+import { formatDay, formatClock } from "./dates.js";
 
 // "2026-10-02" -> a Date at local midnight.
 function dayOf(text) {
@@ -18,7 +19,7 @@ export function dayHeading(text, t) {
   if (days === 1) {
     return t("sentYesterday");
   }
-  return day.toLocaleDateString([], { day: "numeric", month: "short" });
+  return formatDay(day);
 }
 
 // The clock time of an update, but only when it was recorded on the same
@@ -35,7 +36,7 @@ export function timeOf(sentAt, sentOn) {
   if (localDay !== sentOn) {
     return "";
   }
-  return when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return formatClock(when);
 }
 
 // "YYYY-MM-DD" of a Date, in local time.
@@ -60,9 +61,7 @@ export function weekHeading(mondayText, t) {
   const monday = dayOf(mondayText);
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
-  const fmt = (d) =>
-    d.toLocaleDateString([], { day: "numeric", month: "short" });
-  const range = `${fmt(monday)} - ${fmt(sunday)}`;
+  const range = `${formatDay(monday)} - ${formatDay(sunday)}`;
   const thisMonday = weekStart(todayText());
   if (mondayText === thisMonday) {
     return `${t("sentThisWeek")} (${range})`;

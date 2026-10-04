@@ -2,6 +2,7 @@ import { useState } from "react";
 import { apiFetch } from "./api.js";
 import { useT } from "./i18n.jsx";
 import { nameError } from "./farmerRules.js";
+import Required from "./Required.jsx";
 
 function AddFacilitator({ onCancel, onDone }) {
   const t = useT();
@@ -29,7 +30,7 @@ function AddFacilitator({ onCancel, onDone }) {
       const data = await response.json();
 
       if (response.ok) {
-        onDone(name.trim());
+        onDone(name.trim(), data.ff_code);
         return;
       }
       setErrors(typeof data.detail === "object" ? data.detail : {});
@@ -44,7 +45,10 @@ function AddFacilitator({ onCancel, onDone }) {
       <h2>{t("addFf")}</h2>
 
       <div className="field">
-        <label htmlFor="ff-name">{t("ffFullName")}</label>
+        <label htmlFor="ff-name">
+          {t("ffFullName")}
+          <Required />
+        </label>
         <input
           id="ff-name"
           type="text"

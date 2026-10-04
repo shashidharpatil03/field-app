@@ -3084,3 +3084,363 @@ textarea {
 .sd-count.v {
   background: #6a4fd0;
 }
+
+/* ---- Home tiles: smaller, so every tile fits on one screen --------------- */
+.menu {
+  gap: 10px;
+}
+
+.menu-tile {
+  min-height: 0;
+  padding: 12px;
+  gap: 6px;
+}
+
+.menu-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+}
+
+.menu-icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.menu-label {
+  font-size: 16px;
+}
+
+.menu-sub {
+  font-size: 13px;
+}
+
+/* Red star after a compulsory question */
+.req {
+  color: #d62f2f;
+  font-weight: 700;
+}
+
+/* Sync chip: the button, with the time of the last sync under it */
+.sync-box {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.sync-chip {
+  min-height: 44px;
+}
+
+.sync-when {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* ---- PU Management: tabs in the header, facilitator rows, group cards ---- */
+.mhead-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.mhead-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.puseg {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.puseg button {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 10px 6px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+
+.puseg button.on {
+  background: #fff;
+  color: var(--primary, #0a7a6c);
+}
+
+.pu-ffrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(10, 90, 82, 0.08);
+}
+
+.pu-ffrow strong,
+.pu-ffrow small {
+  display: block;
+}
+
+.pu-ffrow small {
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.pu-ffrow.gone {
+  opacity: 0.7;
+}
+
+.pu-leave {
+  flex: none;
+  margin: 0;
+  padding: 8px 14px;
+  min-height: 0;
+  border: 1.5px solid #d62f2f;
+  border-radius: 12px;
+  background: #fff;
+  color: #d62f2f;
+  font-weight: 600;
+}
+
+.pu-fold {
+  width: 100%;
+  margin: 14px 0 0;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.pu-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.pu-filters select {
+  flex: 1;
+  min-width: 0;
+}
+
+.pu-lg {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(10, 90, 82, 0.08);
+}
+
+.pu-lg-top,
+.pu-lg-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pu-lg-top span {
+  color: var(--muted);
+  text-align: right;
+}
+
+.pu-lg-bottom {
+  margin-top: 10px;
+}
+
+.pu-lg-bottom button {
+  margin: 0;
+  min-height: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+}
+
+.pu-drop {
+  border: 0;
+  background: transparent;
+  color: #d62f2f;
+  font-weight: 600;
+}
+
+.pu-ff {
+  border: 1.5px solid #b7cdc7;
+  background: #f4faf8;
+  font-weight: 600;
+}
+
+.pu-ff.unset {
+  border: 1.5px dashed #e8731a;
+  background: #fff6ee;
+  color: #b85408;
+}
+
+.pu-ff.done {
+  border: 1.5px solid #0a7a6c;
+  background: #e6f4f0;
+  color: #0a5a52;
+}
+
+.pu-fchip {
+  display: inline-block;
+  width: auto;
+  margin: 0 0 8px;
+  padding: 6px 12px;
+  min-height: 0;
+  border-radius: 999px;
+  background: #fdeaea;
+  border: 1px solid #d62f2f;
+  color: #d62f2f;
+  font-weight: 600;
+}
+
+.pu-banner {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #fff6ee;
+  border: 1px solid #f3c9a3;
+}
+
+.pu-prog {
+  height: 8px;
+  margin-top: 10px;
+  border-radius: 99px;
+  background: #f3dcc6;
+  overflow: hidden;
+}
+
+.pu-prog i {
+  display: block;
+  height: 100%;
+  background: #e8731a;
+}
+
+.pu-all {
+  width: auto;
+  margin: 10px 0 0;
+  padding: 0;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  color: #0a7a6c;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.pu-stick {
+  position: sticky;
+  bottom: 0;
+  margin-top: 16px;
+  padding: 10px 0;
+  background: linear-gradient(to top, #eef6f3 70%, rgba(238, 246, 243, 0));
+}
+
+.pu-stick button:disabled {
+  background: #cfd8d5;
+  border-color: #cfd8d5;
+  color: #6b7a77;
+  opacity: 1;
+}
+
+/* Bottom sheet */
+.bs-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.bs-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.bs-box {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 18px 16px 22px;
+  border-radius: 26px 26px 0 0;
+  background: #fff;
+}
+
+.bs-title {
+  margin: 0 0 10px;
+}
+
+.bs-box > button {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.pu-opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1.5px solid #d5e3df;
+  background: #fff;
+}
+
+.pu-opt small {
+  display: block;
+  color: var(--muted);
+}
+
+.pu-opt.on {
+  border-color: #0a7a6c;
+  background: #e6f4f0;
+}
+
+.pu-opt:disabled {
+  opacity: 0.5;
+}
+
+.pu-rad {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #9db8b1;
+}
+
+.pu-opt.on .pu-rad {
+  border-color: #0a7a6c;
+  background: radial-gradient(#0a7a6c 45%, transparent 50%);
+}
+
+.pu-note {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #e6f4f0;
+}
+
+.pu-note.warn {
+  background: #fff6ee;
+}
+
+.pu-sum {
+  margin: 6px 0;
+}

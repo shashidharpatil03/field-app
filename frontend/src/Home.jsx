@@ -24,6 +24,9 @@ const MODULES = [
   { id: "sync", labelKey: "menu_sync", Icon: ReadyIcon },
 ];
 
+// Only these tiles carry a line of explanation under the name.
+const SHOW_SUB = ["sent", "incomplete", "sync"];
+
 function Home({ onOpen, user, onLogOut }) {
   const t = useT();
   const [drafts, setDrafts] = useState(0);
@@ -67,7 +70,9 @@ function Home({ onOpen, user, onLogOut }) {
               <span className="menu-badge">{waiting}</span>
             )}
             <span className="menu-label">{t(m.labelKey)}</span>
-            <span className="menu-sub">{t(`${m.labelKey}_sub`)}</span>
+            {SHOW_SUB.includes(m.id) && (
+              <span className="menu-sub">{t(`${m.labelKey}_sub`)}</span>
+            )}
           </button>
         ))}
       </div>

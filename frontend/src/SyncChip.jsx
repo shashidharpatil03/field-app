@@ -9,9 +9,9 @@ import {
   formatWhen,
 } from "./offline.js";
 
-// The one sync button, top right of the home screen. It shows where things
-// stand in two short lines: a word ("Synced", "3 to send", "Offline") and
-// the time data last reached the server. Tapping it syncs right now: it
+// The one sync button, top right of the home screen. The button says where
+// things stand in a word ("Synced", "3 to send", "Offline"); under it, in
+// small text, is when data last reached the server ("Today 7:49 AM"). Tapping it syncs right now: it
 // sends anything waiting, and when it works the time becomes "now". If
 // something was refused it opens "Ready to send" instead.
 function SyncChip({ onOpen }) {
@@ -98,15 +98,21 @@ function SyncChip({ onOpen }) {
   }
 
   return (
-    <button className={`sync-chip ${tone}`} onClick={handleTap} disabled={busy}>
-      <span className="sync-chip-icon" aria-hidden="true">
-        ↻
-      </span>
-      <span className="sync-chip-text">
+    <div className="sync-box">
+      <button
+        className={`sync-chip ${tone}`}
+        onClick={handleTap}
+        disabled={busy}
+      >
+        <span className="sync-chip-icon" aria-hidden="true">
+          ↻
+        </span>
         <b>{word}</b>
-        <small>{lastSync ? formatWhen(lastSync) : t("neverSyncedShort")}</small>
-      </span>
-    </button>
+      </button>
+      <small className="sync-when">
+        {lastSync ? formatWhen(lastSync) : t("neverSyncedShort")}
+      </small>
+    </div>
   );
 }
 

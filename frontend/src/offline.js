@@ -35,23 +35,8 @@ function announce() {
   window.dispatchEvent(new Event("pending-changed"));
 }
 
-// Times are stored in UTC; show them in the phone's own time zone.
-// Today's times show just the clock time; older ones also show the date.
-export function formatWhen(iso) {
-  const date = new Date(iso);
-  if (isNaN(date)) {
-    return "";
-  }
-  if (date.toDateString() === new Date().toDateString()) {
-    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  }
-  return date.toLocaleString([], {
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
+// Times are written like "Today 7:49 AM" or "4 Oct 5:00 PM" (see dates.js).
+export { formatWhen } from "./dates.js";
 
 // ---- The waiting list -------------------------------------------------
 

@@ -64,6 +64,13 @@ def fail(connection, status_code, message, form=False):
     )
 
 
+# The facilitator code, for example INMH01FF5: PU code, "FF", number.
+FF_CODE_SQL = (
+    "((SELECT pus.code FROM pus WHERE pus.id = facilitators.pu_id)"
+    " || 'FF' || facilitators.ff_number)"
+)
+
+
 def require_manager(user):
     if user["role"] != "pu_manager":
         fail(None, 403, "Only the PU manager can do this")
@@ -284,7 +291,8 @@ def list_lgs(user: dict = Depends(current_user)):
              WHERE farmers.lg_id = learning_groups.id
              AND {this_sql}) AS season_farmers,
             facilitators.id AS ff_id,
-            facilitators.name AS ff_name
+            facilitators.name AS ff_name,
+            {FF_CODE_SQL} AS ff_code
         FROM learning_groups
         JOIN pus ON pus.id = learning_groups.pu_id
         JOIN villages ON villages.id = learning_groups.village_id
@@ -315,8 +323,10 @@ def list_users():
     connection = sqlite3.connect("field.db")
     connection.row_factory = sqlite3.Row
     rows = connection.execute(
-        """
-        SELECT app_users.id, app_users.name, app_users.role, pus.name AS pu_name
+        f"""
+        SELECT app_users.id, app_users.name, app_users.role, pus.name AS pu_name,
+               CASE WHEN app_users.ff_id IS NULL THEN NULL
+                    ELSE {FF_CODE_SQL} END AS ff_code
         FROM app_users
         JOIN pus ON pus.id = app_users.pu_id
         LEFT JOIN facilitators ON facilitators.id = app_users.ff_id
@@ -333,8 +343,8 @@ def list_ffs(user: dict = Depends(current_user)):
     connection = sqlite3.connect("field.db")
     connection.row_factory = sqlite3.Row
     rows = connection.execute(
-        """
-        SELECT id, name, pu_id FROM facilitators
+        f"""
+        SELECT id, name, pu_id, {FF_CODE_SQL} AS ff_code FROM facilitators
         WHERE active = 1
         AND ((? = 'pu_manager' AND pu_id = ?)
           OR (? = 'facilitator' AND id = ?))
@@ -1346,7 +1356,10 @@ def edit_farmer(
         changes.append(("Water regime", old[6] or "(not recorded)", body.water_regime))
 
     status_changed = new_status != old[7]
-    if not changes and not status_changed:
+    # A farmer still to be updated can be saved with the same answers: the
+    # facilitator has just checked them, so that counts as an update.
+    was_to_update = season_status(connection, farmer_id) == "to_update"
+    if not changes and not status_changed and not was_to_update:
         connection.close()
         raise HTTPException(status_code=400, detail={"form": "Nothing was changed"})
 
@@ -1413,6 +1426,16 @@ def edit_farmer(
                 """,
                 (farmer_id, today, user["id"]),
             )
+    if was_to_update and not changes and not status_changed:
+        connection.execute(
+            """
+            INSERT INTO farmer_change_log
+                (farmer_id, field, old_value, new_value, changed_on, reason,
+                 changed_by)
+            VALUES (?, 'Confirmed', '', 'Details confirmed', ?, '', ?)
+            """,
+            (farmer_id, today, user["id"]),
+        )
     log_activity(connection, user, "Farmer edited", f"Farmer {farmer_id}")
     connection.commit()
     connection.close()
@@ -2066,20 +2089,27 @@ def pu_facilitators(user: dict = Depends(current_user)):
     require_manager(user)
     connection = sqlite3.connect("field.db")
     connection.row_factory = sqlite3.Row
+    # Only groups that are still running count (a dropped group is not
+    # something the facilitator looks after any more).
     rows = connection.execute(
-        """
+        f"""
         SELECT
             facilitators.id,
             facilitators.name,
             facilitators.active,
             facilitators.left_on,
+            {FF_CODE_SQL} AS ff_code,
             (SELECT COUNT(*) FROM assignments
+             JOIN learning_groups ON learning_groups.id = assignments.lg_id
              WHERE assignments.ff_id = facilitators.id
-             AND assignments.end_date IS NULL) AS lg_count,
+             AND assignments.end_date IS NULL
+             AND learning_groups.dropped_on IS NULL) AS lg_count,
             (SELECT COUNT(*) FROM farmers
              JOIN assignments ON assignments.lg_id = farmers.lg_id
                  AND assignments.end_date IS NULL
+             JOIN learning_groups ON learning_groups.id = farmers.lg_id
              WHERE assignments.ff_id = facilitators.id
+             AND learning_groups.dropped_on IS NULL
              AND farmers.participation = 'continuing') AS farmer_count
         FROM facilitators
         WHERE facilitators.pu_id = ?
@@ -2116,11 +2146,21 @@ def add_facilitator(body: NewFacilitator, user: dict = Depends(current_user)):
             detail={"name": "A facilitator with this name already exists in your PU"},
         )
 
+    # The next number in this PU. Facilitators are never deleted, only marked
+    # as left, so a number is never given out twice.
+    ff_number = connection.execute(
+        "SELECT COALESCE(MAX(ff_number), 0) + 1 FROM facilitators WHERE pu_id = ?",
+        (user["pu_id"],),
+    ).fetchone()[0]
     cursor = connection.execute(
-        "INSERT INTO facilitators (name, pu_id) VALUES (?, ?)",
-        (name, user["pu_id"]),
+        "INSERT INTO facilitators (name, pu_id, ff_number) VALUES (?, ?, ?)",
+        (name, user["pu_id"], ff_number),
     )
     ff_id = cursor.lastrowid
+    ff_code = connection.execute(
+        "SELECT code || 'FF' || ? FROM pus WHERE id = ?",
+        (ff_number, user["pu_id"]),
+    ).fetchone()[0]
     # The new facilitator also gets a demo sign-in.
     connection.execute(
         "INSERT INTO app_users (name, role, pu_id, ff_id) "
@@ -2130,7 +2170,7 @@ def add_facilitator(body: NewFacilitator, user: dict = Depends(current_user)):
     log_activity(connection, user, "Facilitator added", f"Facilitator {ff_id}, {name}")
     connection.commit()
     connection.close()
-    return {"id": ff_id}
+    return {"id": ff_id, "ff_code": ff_code}
 
 
 class LeaveAssignment(BaseModel):
@@ -2159,8 +2199,16 @@ def facilitator_leaves(
     if not ff[2]:
         fail(connection, 400, "This facilitator is already marked as left", True)
 
+    # Only groups that are still running need a new facilitator. A dropped
+    # group keeps its history; if it is brought back later, the manager gives
+    # it a facilitator then.
     current = connection.execute(
-        "SELECT id, lg_id FROM assignments WHERE ff_id = ? AND end_date IS NULL",
+        """
+        SELECT assignments.id, assignments.lg_id FROM assignments
+        JOIN learning_groups ON learning_groups.id = assignments.lg_id
+        WHERE assignments.ff_id = ? AND assignments.end_date IS NULL
+        AND learning_groups.dropped_on IS NULL
+        """,
         (ff_id,),
     ).fetchall()
     current_by_lg = {lg_id: assignment_id for assignment_id, lg_id in current}

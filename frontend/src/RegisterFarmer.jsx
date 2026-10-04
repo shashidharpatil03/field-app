@@ -8,6 +8,7 @@ import {
   cottonAfterGrowingChange,
   acresText,
 } from "./farmerRules.js";
+import Required from "./Required.jsx";
 import LandFields from "./LandFields.jsx";
 import NameFields from "./NameFields.jsx";
 import { apiFetch } from "./api.js";
@@ -298,7 +299,10 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
         />
 
         <div className="field">
-          <label htmlFor="gender">Gender</label>
+          <label htmlFor="gender">
+            Gender
+            <Required />
+          </label>
           <select
             id="gender"
             value={gender}
@@ -314,7 +318,10 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
         </div>
 
         <div className="field">
-          <label htmlFor="cotton">Growing cotton this season?</label>
+          <label htmlFor="cotton">
+            Growing cotton this season?
+            <Required />
+          </label>
           <select
             id="cotton"
             value={growingCotton}

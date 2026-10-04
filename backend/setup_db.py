@@ -55,7 +55,8 @@ cursor.execute("""
         name TEXT NOT NULL,
         pu_id INTEGER NOT NULL REFERENCES pus(id),
         active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
-        left_on TEXT
+        left_on TEXT,
+        ff_number INTEGER
     )
 """)
 
@@ -240,8 +241,20 @@ for lg_id in range(1, len(groups) + 1):
 
 cursor.executemany("INSERT INTO pus (code, name) VALUES (?, ?)", pus)
 cursor.executemany("INSERT INTO villages (name, pu_id) VALUES (?, ?)", villages)
+# Each facilitator gets a number inside their PU (1, 2, 3...). It is never
+# reused, so the code (for example INMH01FF2) names one person only.
+next_ff_number = {}
+facilitator_rows = []
+for ff_name, ff_pu_id in facilitators:
+    next_ff_number[ff_pu_id] = next_ff_number.get(ff_pu_id, 0) + 1
+    facilitator_rows.append((ff_name, ff_pu_id, next_ff_number[ff_pu_id]))
 cursor.executemany(
-    "INSERT INTO facilitators (name, pu_id) VALUES (?, ?)", facilitators
+    "INSERT INTO facilitators (name, pu_id, ff_number) VALUES (?, ?, ?)",
+    facilitator_rows,
+)
+cursor.execute(
+    "CREATE UNIQUE INDEX facilitators_number_unique "
+    "ON facilitators(pu_id, ff_number)"
 )
 cursor.executemany(
     "INSERT INTO learning_groups (pu_id, village_id, lg_number) VALUES (?, ?, ?)",

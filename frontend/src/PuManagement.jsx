@@ -3,18 +3,22 @@ import ModuleHeader from "./ModuleHeader.jsx";
 import { apiFetch } from "./api.js";
 import { useT } from "./i18n.jsx";
 import AddFacilitator from "./AddFacilitator.jsx";
-import LeaveFlow from "./LeaveFlow.jsx";
-import BulkMove from "./BulkMove.jsx";
-import ManageLgs from "./ManageLgs.jsx";
+import LgTab from "./LgTab.jsx";
+import { formatDate } from "./dates.js";
 
+// PU Management (PU manager only). Two tabs in the green header:
+//   Facilitators - who is on the team, add one, or mark one as leaving
+//   Learning groups - every group, move/drop/add; also where a leaving
+//                     facilitator's groups are given to new facilitators.
 function PuManagement({ onHome }) {
   const t = useT();
   const [view, setView] = useState("ffs");
   const [ffs, setFfs] = useState([]);
   const [lgs, setLgs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [adding, setAdding] = useState(false);
-  const [leaving, setLeaving] = useState(null);
+  const [addingFf, setAddingFf] = useState(false);
+  const [leavingFf, setLeavingFf] = useState(null);
+  const [showLeft, setShowLeft] = useState(false);
   const [message, setMessage] = useState("");
 
   function load() {
@@ -32,12 +36,25 @@ function PuManagement({ onHome }) {
     load();
   }, []);
 
-  async function finished(text) {
-    // Reload first, then leave the form, so the list is never stale.
+  async function changed(text) {
     await load();
-    setAdding(false);
-    setLeaving(null);
     setMessage(text);
+  }
+
+  async function leftDone(text) {
+    await load();
+    setLeavingFf(null);
+    setView("ffs");
+    setMessage(text);
+  }
+
+  function showView(name) {
+    setView(name);
+    setMessage("");
+    setAddingFf(false);
+    if (name === "ffs") {
+      setLeavingFf(null);
+    }
   }
 
   if (loading) {
@@ -48,105 +65,105 @@ function PuManagement({ onHome }) {
     );
   }
 
+  const active = ffs.filter((f) => f.active === 1);
+  const left = ffs.filter((f) => f.active === 0);
+
   let body;
-  if (view === "move") {
-    body = <BulkMove />;
-  } else if (view === "groups") {
-    body = <ManageLgs lgs={lgs} ffs={ffs} onChanged={finished} />;
-  } else if (adding) {
+  if (view === "lgs") {
     body = (
-      <AddFacilitator
-        onCancel={() => setAdding(false)}
-        onDone={(name) => finished(t("ffAdded", { name: name }))}
+      <LgTab
+        lgs={lgs}
+        ffs={ffs}
+        leaving={leavingFf}
+        onStopLeaving={() => setLeavingFf(null)}
+        onChanged={changed}
+        onLeft={leftDone}
       />
     );
-  } else if (leaving !== null) {
+  } else if (addingFf) {
     body = (
-      <LeaveFlow
-        ff={leaving}
-        lgs={lgs.filter((lg) => lg.ff_id === leaving.id)}
-        candidates={ffs.filter((f) => f.active === 1 && f.id !== leaving.id)}
-        onCancel={() => setLeaving(null)}
-        onDone={finished}
+      <AddFacilitator
+        onCancel={() => setAddingFf(false)}
+        onDone={async (name, code) => {
+          await load();
+          setAddingFf(false);
+          setMessage(t("ffAddedCode", { name: name, code: code }));
+        }}
       />
     );
   } else {
     body = (
       <div>
-        <button onClick={() => setAdding(true)}>{t("addFf")}</button>
+        <button className="primary" onClick={() => setAddingFf(true)}>
+          ＋ {t("addFf")}
+        </button>
 
-        {ffs.map((f) => (
-          <div className="card" key={f.id}>
-            <h3>
-              {f.name}{" "}
-              <span
-                className={f.active ? "badge continuing" : "badge dropped_out"}
-              >
-                {f.active ? t("statusActive") : t("statusLeft")}
-              </span>
-            </h3>
-            {f.active ? (
-              <div>
-                <p>
-                  {t("groupsCount", { n: f.lg_count })} ·{" "}
-                  {t("farmersCount", { n: f.farmer_count })}
-                </p>
-                <button
-                  onClick={() => {
-                    setMessage("");
-                    setLeaving(f);
-                  }}
-                >
-                  {t("markLeft")}
-                </button>
-              </div>
-            ) : (
-              <p>{t("leftOn", { date: f.left_on })}</p>
-            )}
+        {active.map((f) => (
+          <div className="pu-ffrow" key={f.id}>
+            <div>
+              <strong>{f.name}</strong>
+              <small>{f.ff_code}</small>
+              <small>
+                {t("groupsCount", { n: f.lg_count })} ·{" "}
+                {t("farmersCount", { n: f.farmer_count })}
+              </small>
+            </div>
+            <button
+              className="pu-leave"
+              onClick={() => {
+                setMessage("");
+                setLeavingFf(f);
+                setView("lgs");
+              }}
+            >
+              {t("ffLeavingBtn")}
+            </button>
           </div>
         ))}
+
+        {left.length > 0 && (
+          <div>
+            <button className="pu-fold" onClick={() => setShowLeft(!showLeft)}>
+              {t("leftHeading", { n: left.length })} {showLeft ? "▴" : "▾"}
+            </button>
+            {showLeft &&
+              left.map((f) => (
+                <div className="pu-ffrow gone" key={f.id}>
+                  <div>
+                    <strong>{f.name}</strong>
+                    <small>{f.ff_code}</small>
+                    <small>
+                      {t("leftOn", { date: formatDate(f.left_on) })}
+                    </small>
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
       </div>
     );
   }
 
   return (
     <div className="page">
-      <ModuleHeader titleKey="menu_pu" onBack={onHome} />
+      <ModuleHeader titleKey="menu_pu" onBack={onHome}>
+        <div className="puseg">
+          <button
+            className={view === "ffs" ? "on" : ""}
+            onClick={() => showView("ffs")}
+          >
+            {t("tabFfs")}
+          </button>
+          <button
+            className={view === "lgs" ? "on" : ""}
+            onClick={() => showView("lgs")}
+          >
+            {t("tabLgGroups")}
+          </button>
+        </div>
+      </ModuleHeader>
 
       {message && <p className="message">{message}</p>}
-
-      <div className="tabs">
-        <button
-          className={view === "ffs" ? "tab active" : "tab"}
-          onClick={() => {
-            setView("ffs");
-            setAdding(false);
-            setLeaving(null);
-            load();
-          }}
-        >
-          {t("tabFfs")}
-        </button>
-        <button
-          className={view === "groups" ? "tab active" : "tab"}
-          onClick={() => {
-            setView("groups");
-            setMessage("");
-            load();
-          }}
-        >
-          {t("tabLgGroups")}
-        </button>
-        <button
-          className={view === "move" ? "tab active" : "tab"}
-          onClick={() => {
-            setView("move");
-            setMessage("");
-          }}
-        >
-          {t("tabMove")}
-        </button>
-      </div>
 
       {body}
     </div>
