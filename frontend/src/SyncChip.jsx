@@ -20,7 +20,9 @@ function SyncChip({ onOpen }) {
   const [lastSync, setLastSync] = useState(getLastSync());
   const [online, setOnline] = useState(navigator.onLine);
   const [busy, setBusy] = useState(false);
-  const [attention, setAttention] = useState(0);
+  // Entries the server refused, which need a look on the Sync screen.
+  const refused = () => getPending().filter((item) => item.error).length;
+  const [attention, setAttention] = useState(refused());
 
   useEffect(() => {
     // The phone's own online flag is not trustworthy on a poor connection,
@@ -32,6 +34,7 @@ function SyncChip({ onOpen }) {
     }
     function refresh() {
       setPending(getPending().length);
+      setAttention(refused());
       setLastSync(getLastSync());
     }
     function goOffline() {
@@ -65,7 +68,7 @@ function SyncChip({ onOpen }) {
           setOnline(false);
         } else {
           const bad = outcome.results.filter((r) => r.status !== "done").length;
-          setAttention(bad);
+          setAttention(refused());
           if (bad === 0) {
             // Everything that was waiting got through (or nothing was
             // waiting): the phone and the server agree as of now.

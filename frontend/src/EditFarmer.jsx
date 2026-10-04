@@ -5,11 +5,14 @@ import {
   needsLargeConfirm,
   cottonAfterGrowingChange,
   acresText,
+  withSummary,
+  fullName,
 } from "./farmerRules.js";
 import LandFields from "./LandFields.jsx";
 import NameFields from "./NameFields.jsx";
 import Required from "./Required.jsx";
 import { apiFetch } from "./api.js";
+import { isNetworkError, queueEdit, updateWaitingForm } from "./offline.js";
 
 const DROP_REASONS = [
   "Moved away",
@@ -42,7 +45,9 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
   const [status, setStatus] = useState(blank ? "" : farmer.participation);
   const [dropReason, setDropReason] = useState("");
   const [asking, setAsking] = useState(false);
-  const [reason, setReason] = useState("");
+  // "form" is the questions; "review" shows the answers before saving.
+  const [step, setStep] = useState("form");
+  const [largeOk, setLargeOk] = useState(false);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
@@ -68,7 +73,7 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
         found.participation = "Please choose a reason for dropping";
       }
     }
-    setErrors(found);
+    setErrors(withSummary(found));
     if (Object.keys(found).length > 0) {
       return;
     }
@@ -85,33 +90,53 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
       setAsking(true);
       return;
     }
-    save(false);
+    setStep("review");
   }
 
   async function save(confirmedLarge) {
     setAsking(false);
     setSaving(true);
+    const body = {
+      first_name: first,
+      middle_name: middle,
+      last_name: last,
+      gender: gender,
+      growing_cotton: growingCotton === "yes",
+      mobile: mobile,
+      total_landholding: parseAcres(total),
+      area_under_cotton: parseAcres(cotton),
+      water_regime: water,
+      confirmed_large: confirmedLarge,
+      participation: status,
+      drop_reason: status === "dropped_out" ? dropReason : "",
+    };
+
+    // A farmer who is still waiting to be registered is not on the server
+    // yet: just change the answers waiting on the phone.
+    if (farmer.id < 0) {
+      updateWaitingForm(farmer.pendingKey, {
+        first_name: first,
+        middle_name: middle,
+        last_name: last,
+        gender: gender,
+        growing_cotton: body.growing_cotton,
+        mobile: mobile,
+        total_landholding: body.total_landholding,
+        area_under_cotton: body.area_under_cotton,
+        water_regime: water,
+        confirmed_large: confirmedLarge,
+      });
+      onSaved();
+      return;
+    }
+
     try {
       const response = await apiFetch(
         `http://localhost:8000/farmers/${farmer.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            first_name: first,
-            middle_name: middle,
-            last_name: last,
-            gender: gender,
-            growing_cotton: growingCotton === "yes",
-            mobile: mobile,
-            total_landholding: parseAcres(total),
-            area_under_cotton: parseAcres(cotton),
-            water_regime: water,
-            confirmed_large: confirmedLarge,
-            reason: reason,
-            participation: status,
-            drop_reason: status === "dropped_out" ? dropReason : "",
-          }),
+          body: JSON.stringify(body),
         },
       );
       const data = await response.json();
@@ -120,11 +145,88 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
         onSaved();
         return;
       }
-      setErrors(typeof data.detail === "object" ? data.detail : {});
-    } catch {
-      setErrors({ form: "Could not reach the server. Please try again." });
+      setErrors(
+        withSummary(typeof data.detail === "object" ? data.detail : {}),
+      );
+      setStep("form");
+    } catch (error) {
+      // No signal: keep the change on the phone, it is sent later.
+      if (isNetworkError(error) && queueEdit(farmer, body)) {
+        onSaved();
+        return;
+      }
+      setErrors({ form: "Could not save. Please try again." });
+      setStep("form");
     }
     setSaving(false);
+  }
+
+  if (step === "review") {
+    const yesNo = (value) => (value ? "Yes" : "No");
+    const part = (value) =>
+      value === "continuing" ? "Continuing" : "Dropped out";
+    const acres = (value) =>
+      value === null || value === undefined ? "Not recorded" : `${value} acres`;
+    // [label, new answer, what it was before]
+    const rows = [
+      ["Full name", fullName(first, middle, last), farmer.name],
+      ["Gender", gender, farmer.gender],
+      [
+        "Growing cotton this season?",
+        yesNo(growingCotton === "yes"),
+        yesNo(farmer.growing_cotton),
+      ],
+      [
+        "Mobile number",
+        mobile.trim() || "Not given",
+        farmer.mobile || "Not given",
+      ],
+      [
+        "Total landholding",
+        acres(parseAcres(total)),
+        acres(farmer.total_landholding),
+      ],
+      [
+        "Area under cotton",
+        acres(parseAcres(cotton)),
+        acres(farmer.area_under_cotton),
+      ],
+      ["Water regime", water, farmer.water_regime || "Not recorded"],
+    ];
+    if (farmer.season_status !== "new") {
+      rows.push([
+        "Farmer Participation",
+        part(status),
+        part(farmer.participation),
+      ]);
+    }
+    if (status === "dropped_out" && farmer.participation === "continuing") {
+      rows.push(["Reason for dropping", dropReason, dropReason]);
+    }
+    return (
+      <div>
+        <h2>Review</h2>
+        <p>Check the answers, then save.</p>
+        <div className="card">
+          {rows.map(([label, value, was]) => (
+            <div className="profile-row" key={label}>
+              <span className="label">{label}</span>
+              <span className="value">
+                {value}
+                {value !== was && <small className="was">Was: {was}</small>}
+              </span>
+            </div>
+          ))}
+        </div>
+        {errors.form && <p className="error">{errors.form}</p>}
+        <button onClick={() => save(largeOk)} disabled={saving}>
+          {saving ? "Saving..." : "Save"}
+        </button>
+        <button onClick={() => setStep("form")} disabled={saving}>
+          Edit answers
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -259,20 +361,9 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
         </div>
       )}
 
-      <div className="field">
-        <label htmlFor="edit-reason">Reason for change (optional)</label>
-        <input
-          id="edit-reason"
-          type="text"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          className={errors.reason ? "has-error" : ""}
-        />
-        {errors.reason && <p className="error">{errors.reason}</p>}
-      </div>
-
       {errors.confirm_large && <p className="error">{errors.confirm_large}</p>}
       {errors.form && <p className="error">{errors.form}</p>}
+      {errors.summary && <p className="error">{errors.summary}</p>}
 
       {asking ? (
         <div className="warning-box" role="alert">
@@ -282,7 +373,14 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
             {parseAcres(total)} acres of land and {parseAcres(cotton)} acres of
             cotton.
           </p>
-          <button type="button" onClick={() => save(true)}>
+          <button
+            type="button"
+            onClick={() => {
+              setLargeOk(true);
+              setAsking(false);
+              setStep("review");
+            }}
+          >
             Yes, it is correct
           </button>
           <button type="button" onClick={() => setAsking(false)}>
@@ -292,7 +390,7 @@ function EditFarmer({ farmer, onCancel, onSaved }) {
       ) : (
         <div>
           <button type="submit" disabled={saving}>
-            {saving ? "Saving..." : "Save"}
+            Review
           </button>
           <button type="button" onClick={onCancel} disabled={saving}>
             Cancel

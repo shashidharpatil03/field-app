@@ -204,3 +204,26 @@ export function checkForm(
 
   return errors;
 }
+
+// The line shown next to Save / Review when something is missing or wrong,
+// so the person knows why nothing happened even if the red fields are
+// above the part of the form they can see.
+export const PROBLEMS_MESSAGE =
+  "Some answers are missing or wrong. Please check the fields marked in red.";
+
+// Adds that line to a set of field errors (if there are any), and scrolls
+// the first red field into view.
+export function withSummary(errors) {
+  if (Object.keys(errors).length === 0) {
+    return errors;
+  }
+  setTimeout(() => {
+    const first =
+      document.querySelector(".has-error") ||
+      document.querySelector(".field .error");
+    if (first) {
+      first.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, 50);
+  return { ...errors, summary: PROBLEMS_MESSAGE };
+}

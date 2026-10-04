@@ -424,6 +424,9 @@ function SubmitData({
                         onClick={() => onOpenFarmer(f.id)}
                       >
                         {f.name}
+                        {f.pending && (
+                          <small className="sd-wait">{t("waitingBadge")}</small>
+                        )}
                       </button>
                       {f.season_status === "dropped" && (
                         <button

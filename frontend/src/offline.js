@@ -3,7 +3,7 @@
 // Everything is kept per signed-in user, so two people sharing a phone
 // never see each other's pending work.
 
-import { apiFetch, getApiUser } from "./api.js";
+import { apiFetch, getApiUser, pauseRefresh } from "./api.js";
 
 const BASE = "http://localhost:8000";
 
@@ -39,9 +39,27 @@ function announce() {
 export { formatWhen } from "./dates.js";
 
 // ---- The waiting list -------------------------------------------------
+// Everything done without signal waits here until it can be sent. Each
+// entry has a `kind`:
+//   (none)       a form: a draft, or a farmer waiting to be registered
+//                { lgId, lgCode, draftId, data, submit }
+//   "edit"       a change to a farmer     { farmerId, farmerCode, name, body }
+//   "delete"     a farmer to delete       { farmerId, farmerCode, name, body }
+//   "draftDelete" a draft to throw away   { draftId, name }
+// Entries are sent one by one, in the order they were made.
+
+// A forms' number on this phone only: it is negative, so it can never be
+// the same as a number the server gave out.
+function newLocalId() {
+  return -(Date.now() * 1000 + Math.floor(Math.random() * 1000));
+}
 
 export function getPending(userId = getApiUser()) {
-  return read(`pending_${userId}`, []);
+  return read(`pending_${userId}`, []).map((item) =>
+    item.kind || item.localId
+      ? item
+      : { ...item, localId: -(Number(String(item.key).split("-")[0]) * 1000) },
+  );
 }
 
 function setPending(list, userId = getApiUser()) {
@@ -50,15 +68,44 @@ function setPending(list, userId = getApiUser()) {
   return ok;
 }
 
-// item: { lgId, lgCode, draftId, data, submit }
-// Returns false if the phone had no room to keep it.
-export function addPending(item) {
-  const entry = {
+function newEntry(item) {
+  return {
     ...item,
     key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     savedAt: new Date().toISOString(),
   };
-  return setPending([...getPending(), entry]);
+}
+
+// Keeps a form on the phone. Saving the same form again (same key, or the
+// same draft on the server) replaces the earlier entry instead of adding a
+// second one. Returns false if the phone had no room to keep it.
+export function addPending(item) {
+  const list = getPending();
+  const same = list.find(
+    (p) =>
+      !p.kind &&
+      ((item.key && p.key === item.key) ||
+        (item.draftId !== null &&
+          item.draftId !== undefined &&
+          p.draftId === item.draftId)),
+  );
+  if (same) {
+    return setPending(
+      list.map((p) =>
+        p === same
+          ? {
+              ...p,
+              ...item,
+              key: p.key,
+              localId: p.localId,
+              savedAt: new Date().toISOString(),
+              error: undefined,
+            }
+          : p,
+      ),
+    );
+  }
+  return setPending([...list, { ...newEntry(item), localId: newLocalId() }]);
 }
 
 export function removePending(key) {
@@ -71,6 +118,65 @@ function updatePending(key, changes) {
       item.key === key ? { ...item, ...changes } : item,
     ),
   );
+}
+
+// Changes the answers of a farmer who is still waiting to be registered.
+export function updateWaitingForm(key, patch) {
+  return setPending(
+    getPending().map((item) =>
+      item.key === key
+        ? { ...item, data: { ...item.data, ...patch }, error: undefined }
+        : item,
+    ),
+  );
+}
+
+// A change to a farmer that is on the server. A second change to the same
+// farmer replaces the first, because it holds all the answers anyway.
+export function queueEdit(farmer, body) {
+  const rest = getPending().filter(
+    (p) => !(p.kind === "edit" && p.farmerId === farmer.id),
+  );
+  return setPending([
+    ...rest,
+    newEntry({
+      kind: "edit",
+      farmerId: farmer.id,
+      farmerCode: farmer.farmer_code,
+      lgCode: farmer.lg_code,
+      name: farmer.name,
+      body: body,
+    }),
+  ]);
+}
+
+export function queueDelete(farmer, body) {
+  const rest = getPending().filter(
+    (p) => !(p.kind === "edit" && p.farmerId === farmer.id),
+  );
+  return setPending([
+    ...rest,
+    newEntry({
+      kind: "delete",
+      farmerId: farmer.id,
+      farmerCode: farmer.farmer_code,
+      lgCode: farmer.lg_code,
+      name: farmer.name,
+      body: body,
+    }),
+  ]);
+}
+
+export function queueDraftDelete(draft) {
+  return setPending([
+    ...getPending(),
+    newEntry({
+      kind: "draftDelete",
+      draftId: draft.id,
+      lgCode: draft.lg_code,
+      name: draft.name,
+    }),
+  ]);
 }
 
 // ---- A saved copy of the learning-group list --------------------------
@@ -140,6 +246,51 @@ async function parse(response) {
 // Returns { status: "done", code? } or { status: "rejected", message,
 // keep }. Throws on network problems, so the caller can stop and retry.
 export async function sendItem(item) {
+  if (item.kind === "edit") {
+    const response = await apiFetch(`${BASE}/farmers/${item.farmerId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(item.body),
+    });
+    const data = await parse(response);
+    // "Nothing was changed" means the change is already on the server (for
+    // example, the answer was lost on the way back).
+    if (response.ok || messagesFrom(data) === "Nothing was changed") {
+      return { status: "done" };
+    }
+    return { status: "rejected", keep: true, message: messagesFrom(data) };
+  }
+
+  if (item.kind === "delete") {
+    const response = await apiFetch(`${BASE}/farmers/${item.farmerId}/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(item.body),
+    });
+    if (response.ok || response.status === 404) {
+      return { status: "done" };
+    }
+    return {
+      status: "rejected",
+      keep: true,
+      message: messagesFrom(await parse(response)),
+    };
+  }
+
+  if (item.kind === "draftDelete") {
+    const response = await apiFetch(`${BASE}/drafts/${item.draftId}`, {
+      method: "DELETE",
+    });
+    if (response.ok || response.status === 404) {
+      return { status: "done" };
+    }
+    return {
+      status: "rejected",
+      keep: true,
+      message: messagesFrom(await parse(response)),
+    };
+  }
+
   let draftId = item.draftId;
 
   // 1. Make sure the answers exist as a draft on the server.
@@ -195,30 +346,62 @@ export async function sendItem(item) {
   };
 }
 
-// Sends everything waiting, one by one. Stops at the first network
-// problem. Returns { results, offline }.
-export async function syncAll() {
+// localData.js says what to do around a send: keep the screens steady while
+// it runs, and fetch a fresh copy of the server's data when it ends.
+let syncHooks = { start: () => {}, finish: async () => {} };
+
+export function setSyncHooks(hooks) {
+  syncHooks = hooks;
+}
+
+let running = null;
+
+// Sends everything waiting, one by one. Stops at the first network problem.
+// Two sends never run at the same time (that could register a farmer
+// twice). With skipErrored, entries the server already refused are left
+// alone. Returns { results, offline }.
+export function syncAll(options = {}) {
+  if (running) {
+    return running;
+  }
+  running = doSync(options).finally(() => {
+    running = null;
+  });
+  return running;
+}
+
+async function doSync({ skipErrored = false } = {}) {
   const results = [];
   let offline = false;
 
-  for (const item of getPending()) {
-    try {
-      const outcome = await sendItem(item);
-      if (outcome.status === "done") {
-        removePending(item.key);
-      } else if (!outcome.keep) {
-        removePending(item.key);
-      } else {
-        updatePending(item.key, { error: outcome.message });
+  syncHooks.start();
+  pauseRefresh(true);
+  try {
+    for (const item of getPending()) {
+      if (skipErrored && item.error) {
+        continue;
       }
-      results.push({ item, ...outcome });
-    } catch (error) {
-      if (!isNetworkError(error)) {
-        throw error;
+      try {
+        const outcome = await sendItem(item);
+        if (outcome.status === "done") {
+          removePending(item.key);
+        } else if (!outcome.keep) {
+          removePending(item.key);
+        } else {
+          updatePending(item.key, { error: outcome.message });
+        }
+        results.push({ item, ...outcome });
+      } catch (error) {
+        if (!isNetworkError(error)) {
+          throw error;
+        }
+        offline = true;
+        break;
       }
-      offline = true;
-      break;
     }
+  } finally {
+    pauseRefresh(false);
+    await syncHooks.finish();
   }
 
   announce();

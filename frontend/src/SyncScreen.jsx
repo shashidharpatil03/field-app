@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import ModuleHeader from "./ModuleHeader.jsx";
 import { useT } from "./i18n.jsx";
+import { fullName } from "./farmerRules.js";
 import {
   getPending,
   removePending,
@@ -60,7 +61,21 @@ function SyncScreen({ onHome }) {
   }
 
   function describe(item) {
-    return item.data.name.trim() || t("unnamedFarmer");
+    const name = item.data
+      ? fullName(
+          item.data.first_name,
+          item.data.middle_name,
+          item.data.last_name,
+        )
+      : item.name;
+    return name || t("unnamedFarmer");
+  }
+
+  function kindOf(item) {
+    if (item.kind === "edit") return t("kindEdit");
+    if (item.kind === "delete") return t("kindDelete");
+    if (item.kind === "draftDelete") return t("kindDraftDelete");
+    return item.submit ? t("kindFarmer") : t("kindDraft");
   }
 
   const rejected = report
@@ -107,7 +122,7 @@ function SyncScreen({ onHome }) {
             <div className="card" key={item.key}>
               <h3>{describe(item)}</h3>
               <p>
-                {item.lgCode} · {item.submit ? t("kindFarmer") : t("kindDraft")}
+                {item.farmerCode ?? item.lgCode} · {kindOf(item)}
               </p>
               <p>
                 <small>

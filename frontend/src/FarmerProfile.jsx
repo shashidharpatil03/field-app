@@ -70,6 +70,13 @@ function FarmerProfile({ farmerId, onBack, onDeleted }) {
         </span>
       </p>
 
+      {farmer.pending && (
+        <p className="note">
+          This farmer has changes waiting to be sent. They go by themselves when
+          there is signal.
+        </p>
+      )}
+
       <div className="card">
         <EditFarmer farmer={farmer} onCancel={onBack} onSaved={onBack} />
       </div>

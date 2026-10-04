@@ -7,6 +7,7 @@ import {
   needsLargeConfirm,
   cottonAfterGrowingChange,
   acresText,
+  withSummary,
 } from "./farmerRules.js";
 import Required from "./Required.jsx";
 import LandFields from "./LandFields.jsx";
@@ -46,7 +47,13 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
       ? `${draft.total_landholding}|${draft.area_under_cotton}`
       : "",
   );
-  const [draftId, setDraftId] = useState(draft ? draft.id : null);
+  // A draft made without signal has a number only on this phone (negative).
+  const [draftId, setDraftId] = useState(
+    draft && draft.id > 0 ? draft.id : null,
+  );
+  // Set when this form is already kept on the phone: it is then saved there
+  // again, and sent from there.
+  const waitingKey = draft && draft.pendingKey ? draft.pendingKey : null;
   const [step, setStep] = useState("form");
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
@@ -75,6 +82,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
   // No signal: keep the answers on this phone, to be sent from Sync later.
   function keepOnPhone(savedDraftId, submit) {
     const kept = addPending({
+      key: waitingKey ?? undefined,
       lgId: lgId,
       lgCode: lgCode,
       draftId: savedDraftId,
@@ -88,7 +96,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
       return false;
     }
     onDone(
-      "No connection, so this is saved on this phone. Open Sync when you have signal to send it.",
+      "Saved on this phone. It will be sent by itself when there is signal.",
     );
     return true;
   }
@@ -131,6 +139,9 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
       return;
     }
     setBusy(true);
+    if (waitingKey !== null && keepOnPhone(draftId, false)) {
+      return;
+    }
     try {
       const result = await saveDraft();
       if (result.errors) {
@@ -165,7 +176,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
         water: water,
       },
     );
-    setErrors(found);
+    setErrors(withSummary(found));
     if (Object.keys(found).length === 0) {
       setStep("review");
     }
@@ -174,6 +185,9 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
   async function handleSubmit() {
     setBusy(true);
     let savedId = draftId;
+    if (waitingKey !== null && keepOnPhone(draftId, true)) {
+      return;
+    }
     try {
       const saved = await saveDraft();
       if (saved.errors) {
@@ -370,6 +384,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
           <p className="error">{errors.confirm_large}</p>
         )}
         {errors.form && <p className="error">{errors.form}</p>}
+        {errors.summary && <p className="error">{errors.summary}</p>}
 
         <button type="submit" disabled={busy}>
           Review

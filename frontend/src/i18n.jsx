@@ -285,6 +285,13 @@ export const translations = {
     leftHeading: "Left the project ({n})",
     sameForAll: "Same facilitator for all",
     allGroupsWord: "all groups",
+    kindEdit: "Change to farmer",
+    kindDelete: "Delete farmer",
+    kindDraftDelete: "Remove form",
+    waitingBadge: "Waiting to send",
+    needsInternet:
+      "PU Management needs an internet connection, because changes here affect other people. Please try again when you have signal.",
+    preparingData: "Getting your data ready…",
     addFf: "Add facilitator",
     ffFullName: "Full name",
     save: "Save",

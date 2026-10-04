@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { apiFetch } from "./api.js";
+import { isNetworkError, queueDelete, removePending } from "./offline.js";
 
 const REASONS = [
   "Added by mistake",
@@ -31,6 +32,13 @@ function DeleteFarmer({ farmer, onDeleted }) {
       return;
     }
     setSaving(true);
+    // Still waiting to be registered: it never reached the server, so just
+    // throw the waiting form away.
+    if (farmer.id < 0) {
+      removePending(farmer.pendingKey);
+      onDeleted(`${farmer.name} was deleted.`);
+      return;
+    }
     try {
       const response = await apiFetch(
         `http://localhost:8000/farmers/${farmer.id}/delete`,
@@ -46,8 +54,16 @@ function DeleteFarmer({ farmer, onDeleted }) {
         return;
       }
       setErrors(typeof data.detail === "object" ? data.detail : {});
-    } catch {
-      setErrors({ form: "Could not reach the server. Please try again." });
+    } catch (error) {
+      // No signal: the delete waits on the phone and is sent later.
+      if (
+        isNetworkError(error) &&
+        queueDelete(farmer, { reason: reason, note: note })
+      ) {
+        onDeleted(`${farmer.farmer_code} was deleted.`);
+        return;
+      }
+      setErrors({ form: "Could not delete. Please try again." });
     }
     setSaving(false);
   }

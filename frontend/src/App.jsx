@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
-import { setApiUser, setUnauthorizedHandler } from "./api.js";
-import { LanguageContext } from "./i18n.jsx";
+import { setApiUser, setUnauthorizedHandler, getApiUser } from "./api.js";
+import {
+  prepareLocalData,
+  leaveLocalData,
+  removeLocalData,
+} from "./localData.js";
+import { LanguageContext, useT } from "./i18n.jsx";
 import Login from "./Login.jsx";
 import TopBar from "./TopBar.jsx";
 import Home from "./Home.jsx";
@@ -34,17 +39,31 @@ function save(key, value) {
   }
 }
 
+function Preparing() {
+  const t = useT();
+  return (
+    <div className="page">
+      <p className="message">{t("preparingData")}</p>
+    </div>
+  );
+}
+
 function App() {
   const [user, setUser] = useState(() => {
     const saved = readSaved("user");
     const savedUser = saved ? JSON.parse(saved) : null;
     // Must be set before the first screen asks the server for anything.
-    setApiUser(savedUser ? savedUser.id : null);
+    setApiUser(
+      savedUser ? savedUser.id : null,
+      savedUser ? savedUser.role : null,
+    );
     return savedUser;
   });
   const [lang, setLangState] = useState(
     readSaved("lang") === "mr" ? "mr" : "en",
   );
+  // False while the saved copy of a facilitator's data is being got ready.
+  const [ready, setReady] = useState(user === null);
   const [module, setModule] = useState(null);
   // A farmer opened from Sent, or a draft opened from Incomplete.
   const [profileId, setProfileId] = useState(null);
@@ -56,26 +75,56 @@ function App() {
   }
 
   function handleLogin(chosen) {
-    setApiUser(chosen.id);
+    setApiUser(chosen.id, chosen.role);
+    setReady(false);
     setUser(chosen);
     save("user", JSON.stringify(chosen));
   }
 
   function handleLogOut() {
+    leaveLocalData();
     setApiUser(null);
     setUser(null);
     setModule(null);
     save("user", null);
   }
 
-  // If the server says "unknown user", go back to the sign-in screen.
+  // If the server says "unknown user" or "no longer active", go back to the
+  // sign-in screen and remove the saved copy of that person's data.
   useEffect(() => {
-    setUnauthorizedHandler(handleLogOut);
+    setUnauthorizedHandler(() => {
+      const id = getApiUser();
+      if (id !== null) {
+        removeLocalData(id);
+      }
+      handleLogOut();
+    });
   });
+
+  // Whenever someone signs in (or the app opens with someone already signed
+  // in), get their saved copy ready before showing the screens.
+  useEffect(() => {
+    let stale = false;
+    if (user === null) {
+      setReady(true);
+      return undefined;
+    }
+    setReady(false);
+    prepareLocalData(user).then(() => {
+      if (!stale) {
+        setReady(true);
+      }
+    });
+    return () => {
+      stale = true;
+    };
+  }, [user]);
 
   let screen;
   if (user === null) {
     screen = <Login onLogin={handleLogin} />;
+  } else if (!ready) {
+    screen = <Preparing />;
   } else {
     let content;
     if (module === null) {

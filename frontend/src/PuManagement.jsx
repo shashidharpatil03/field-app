@@ -16,6 +16,7 @@ function PuManagement({ onHome }) {
   const [ffs, setFfs] = useState([]);
   const [lgs, setLgs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [offline, setOffline] = useState(false);
   const [addingFf, setAddingFf] = useState(false);
   const [leavingFf, setLeavingFf] = useState(null);
   const [showLeft, setShowLeft] = useState(false);
@@ -26,10 +27,14 @@ function PuManagement({ onHome }) {
       apiFetch("http://localhost:8000/pu/facilitators")
         .then((response) => response.json())
         .then((data) => setFfs(data)),
-      apiFetch("http://localhost:8000/lgs")
+      // Always the server's own answer, never the copy saved on the phone.
+      apiFetch("http://localhost:8000/lgs", { fresh: true })
         .then((response) => response.json())
         .then((data) => setLgs(data)),
-    ]).then(() => setLoading(false));
+    ])
+      .then(() => setOffline(false))
+      .catch(() => setOffline(true))
+      .then(() => setLoading(false));
   }
 
   useEffect(() => {
@@ -61,6 +66,25 @@ function PuManagement({ onHome }) {
     return (
       <div className="page">
         <p>Loading...</p>
+      </div>
+    );
+  }
+
+  // Changing facilitators and groups affects other people's phones, so it
+  // only works with a connection.
+  if (offline) {
+    return (
+      <div className="page">
+        <ModuleHeader titleKey="menu_pu" onBack={onHome} />
+        <p className="offline-note">{t("needsInternet")}</p>
+        <button
+          onClick={() => {
+            setLoading(true);
+            load();
+          }}
+        >
+          {t("tryAgain")}
+        </button>
       </div>
     );
   }

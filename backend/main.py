@@ -1,7 +1,7 @@
 import re
 import sqlite3
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import List, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -17,10 +17,12 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    # 5173 is the development copy of the app (npm run dev); 4173 is the
+    # built copy (npm run preview) used to test offline.
+    allow_origins=["http://localhost:5173", "http://localhost:4173"],
     # Also allow the app to be opened from a phone on the same home or office
     # Wi-Fi (private addresses only), for testing on a real device.
-    allow_origin_regex=r"http://(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+):5173",
+    allow_origin_regex=r"http://(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+):(5173|4173)",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -1006,7 +1008,7 @@ def sent_updates(user: dict = Depends(current_user)):
                   AND r.reason NOT LIKE 'Learning group%'
                 GROUP BY r.farmer_id, r.changed_on)
             UNION ALL
-            SELECT f.id, f.registered_on, NULL, f.registered_by
+            SELECT f.id, f.registered_on, f.registered_at, f.registered_by
             FROM farmers f
             WHERE f.registered_on >= ?
               AND NOT EXISTS (
@@ -1050,6 +1052,110 @@ def sent_updates(user: dict = Depends(current_user)):
     ).fetchall()
     connection.close()
     return [dict(row) for row in rows]
+
+
+@app.get("/sync/snapshot")
+def sync_snapshot(user: dict = Depends(current_user)):
+    """Everything one person needs to keep working without signal: their
+    groups, farmers (with each farmer's change history), unfinished forms
+    and the list of what was sent. The phone keeps this copy and answers
+    the app's questions from it. One call, so a slow connection only has
+    to be good once."""
+    first_day = season_start(date.today())
+    status_sql = season_sql(first_day.isoformat())
+    status_values = []
+    for key in ("new", "continued", "dropped", "to_update"):
+        status_values.extend(status_sql[key][1])
+    scope = """((? = 'pu_manager' AND learning_groups.pu_id = ?)
+        OR (? = 'facilitator' AND assignments.ff_id = ?))"""
+    scope_values = [user["role"], user["pu_id"], user["role"], user["ff_id"]]
+    joins = """
+        FROM farmers
+        JOIN learning_groups ON learning_groups.id = farmers.lg_id
+        JOIN pus ON pus.id = learning_groups.pu_id
+        JOIN villages ON villages.id = learning_groups.village_id
+        LEFT JOIN assignments
+            ON assignments.lg_id = farmers.lg_id
+            AND assignments.end_date IS NULL
+        LEFT JOIN facilitators ON facilitators.id = assignments.ff_id
+    """
+    connection = sqlite3.connect("field.db")
+    connection.row_factory = sqlite3.Row
+    farmers = connection.execute(
+        f"""
+        SELECT
+            farmers.id,
+            {FARMER_CODE_SQL} AS farmer_code,
+            pus.code || '-' || printf('%03d', learning_groups.lg_number)
+                AS lg_code,
+            learning_groups.lg_number,
+            farmers.farmer_number,
+            farmers.lg_id,
+            farmers.name,
+            farmers.first_name,
+            farmers.middle_name,
+            farmers.last_name,
+            farmers.gender,
+            farmers.growing_cotton,
+            farmers.mobile,
+            farmers.participation,
+            farmers.total_landholding,
+            farmers.area_under_cotton,
+            farmers.water_regime,
+            farmers.registered_on,
+            (SELECT app_users.name FROM app_users
+              WHERE app_users.id = farmers.registered_by)
+                AS registered_by_name,
+            villages.id AS village_id,
+            villages.name AS village,
+            pus.name AS pu_name,
+            facilitators.name AS ff_name,
+            CASE
+                WHEN {status_sql["new"][0]} THEN 'new'
+                WHEN {status_sql["continued"][0]} THEN 'continued'
+                WHEN {status_sql["dropped"][0]} THEN 'dropped'
+                WHEN {status_sql["to_update"][0]} THEN 'to_update'
+                ELSE 'none'
+            END AS season_status
+        {joins}
+        WHERE {scope}
+        ORDER BY learning_groups.lg_number, farmers.farmer_number
+        """,
+        status_values + scope_values,
+    ).fetchall()
+    change_rows = connection.execute(
+        f"""
+        SELECT farmer_id, id, field, old_value, new_value, changed_on,
+               changed_at, reason,
+               (SELECT app_users.name FROM app_users
+                 WHERE app_users.id = farmer_change_log.changed_by)
+                   AS changed_by_name
+        FROM farmer_change_log
+        WHERE farmer_id IN (SELECT farmers.id {joins} WHERE {scope})
+        ORDER BY id DESC
+        """,
+        scope_values,
+    ).fetchall()
+    connection.close()
+
+    changes = {}
+    for row in change_rows:
+        entry = dict(row)
+        farmer_id = entry.pop("farmer_id")
+        changes.setdefault(str(farmer_id), []).append(entry)
+
+    return {
+        "server_time": datetime.now().isoformat(timespec="seconds"),
+        "season": {
+            "start": first_day.isoformat(),
+            "label": season_label(first_day),
+        },
+        "lgs": list_lgs(user),
+        "farmers": [dict(row) for row in farmers],
+        "changes": changes,
+        "drafts": all_my_drafts(user),
+        "sent": sent_updates(user),
+    }
 
 
 @app.get("/lgs/{lg_id}/drafts")
@@ -1221,13 +1327,16 @@ def submit_draft(draft_id: int, user: dict = Depends(current_user)):
                 (lg_id, farmer_number, name, first_name, middle_name,
                  last_name, gender, growing_cotton, mobile,
                  total_landholding, area_under_cotton, water_regime,
-                 registered_on, registered_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 registered_on, registered_by, registered_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
+            # The time is when the server received it, which for a form
+            # kept on a phone without signal is the moment it was sent.
             (lg_id, number, name, first, middle, last, gender, growing,
              mobile or None,
              round(total, 2), cotton, water, date.today().isoformat(),
-             user["id"]),
+             user["id"],
+             datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")),
         )
     except sqlite3.IntegrityError:
         # Two people saved the same mobile at the same moment: undo everything.

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import ModuleHeader from "./ModuleHeader.jsx";
 import { useT } from "./i18n.jsx";
 import { apiFetch } from "./api.js";
+import { isNetworkError, queueDraftDelete, removePending } from "./offline.js";
 
 // Forms saved as drafts, from every learning group this person can see.
 // Continue reopens the form; Delete form throws the draft away.
@@ -28,11 +29,24 @@ function Incomplete({ onHome, onContinue }) {
     load();
   }, []);
 
-  async function remove(id) {
+  async function remove(draft) {
     try {
-      await apiFetch(`http://localhost:8000/drafts/${id}`, {
-        method: "DELETE",
-      });
+      // A form kept on the phone: throw away the waiting copy. If it is also
+      // a draft on the server, that one is deleted too.
+      if (draft.pending) {
+        removePending(draft.pendingKey);
+      }
+      if (draft.id > 0) {
+        try {
+          await apiFetch(`http://localhost:8000/drafts/${draft.id}`, {
+            method: "DELETE",
+          });
+        } catch (error) {
+          if (!isNetworkError(error) || !queueDraftDelete(draft)) {
+            throw error;
+          }
+        }
+      }
       setSure(null);
       await load();
     } catch {
@@ -68,7 +82,7 @@ function Incomplete({ onHome, onContinue }) {
                     {t("continue")}
                   </button>
                   {sure === d.id ? (
-                    <button className="danger" onClick={() => remove(d.id)}>
+                    <button className="danger" onClick={() => remove(d)}>
                       {t("deleteFormSure")}
                     </button>
                   ) : (

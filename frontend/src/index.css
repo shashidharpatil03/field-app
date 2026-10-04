@@ -3444,3 +3444,20 @@ textarea {
 .pu-sum {
   margin: 6px 0;
 }
+
+/* A farmer whose change has not reached the server yet */
+.sd-wait {
+  display: block;
+  margin-top: 2px;
+  color: #b85408;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* "Was: ..." under an answer that was changed, on the review screen */
+.was {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}

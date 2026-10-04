@@ -115,6 +115,7 @@ cursor.execute("""
         ),
         registered_on TEXT,
         registered_by INTEGER,
+        registered_at TEXT,
         UNIQUE (lg_id, farmer_number)
     )
 """)

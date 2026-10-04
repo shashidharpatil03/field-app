@@ -1,11 +1,41 @@
 // All requests to the backend go through apiFetch, so that every one of
 // them tells the server who is asking (the X-User-Id header).
 
-let currentUserId = null;
-let onUnauthorized = () => {};
+import { getSnapshot } from "./snapshotStore.js";
+import { answerLocal } from "./localQuery.js";
 
-export function setApiUser(id) {
+let currentUserId = null;
+let currentRole = null;
+let onUnauthorized = () => {};
+let afterWrite = null;
+let refreshPaused = false;
+
+// The role is needed because a facilitator's questions are answered from the
+// copy saved on the phone (see localQuery.js).
+export function setApiUser(id, role = null) {
   currentUserId = id;
+  currentRole = role;
+}
+
+export function getApiRole() {
+  return currentRole;
+}
+
+// Facilitators and PU managers both work from the copy saved on the phone.
+export function usesLocalData() {
+  return currentRole === "facilitator" || currentRole === "pu_manager";
+}
+
+// localData.js registers what to do after a change reached the server: fetch
+// a fresh copy, so the screens never show the old numbers.
+export function setAfterWrite(handler) {
+  afterWrite = handler;
+}
+
+// While waiting changes are being sent one by one, the copy is refreshed
+// once at the end instead of after each one.
+export function pauseRefresh(on) {
+  refreshPaused = on;
 }
 
 export function setUnauthorizedHandler(handler) {
@@ -47,7 +77,13 @@ export async function pingServer() {
   }
 }
 
-export function apiFetch(url, options = {}) {
+// Asks the server. Every request to the backend that must really go to the
+// server (and not to the saved copy) uses this.
+export function networkFetch(url, options = {}) {
+  // The phone knows when it has no connection at all: do not wait 20 seconds.
+  if (navigator.onLine === false) {
+    return Promise.reject(new TypeError("offline"));
+  }
   const headers = { ...(options.headers || {}) };
   if (currentUserId !== null) {
     headers["X-User-Id"] = String(currentUserId);
@@ -74,4 +110,46 @@ export function apiFetch(url, options = {}) {
       return response;
     })
     .finally(() => clearTimeout(timer));
+}
+
+// What the screens use. A facilitator who has a saved copy of their data
+// gets reading questions answered from it, instantly and with or without
+// signal. Everything else goes to the server, and after a change succeeds
+// the saved copy is refreshed before the screen reads again.
+export function apiFetch(url, options = {}) {
+  const method = (options.method || "GET").toUpperCase();
+
+  // A request can ask for the server's own answer with { fresh: true }.
+  if (method === "GET" && usesLocalData() && !options.fresh) {
+    const snapshot = getSnapshot();
+    if (snapshot) {
+      const address = new URL(fixAddress(url));
+      const answer = answerLocal(
+        snapshot,
+        address.pathname,
+        address.searchParams,
+      );
+      if (answer) {
+        return Promise.resolve(
+          new Response(JSON.stringify(answer.body), {
+            status: answer.status,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      }
+    }
+  }
+
+  return networkFetch(url, options).then(async (response) => {
+    if (
+      response.ok &&
+      method !== "GET" &&
+      usesLocalData() &&
+      afterWrite &&
+      !refreshPaused
+    ) {
+      await afterWrite();
+    }
+    return response;
+  });
 }
