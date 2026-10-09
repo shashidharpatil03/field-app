@@ -227,3 +227,23 @@ export function withSummary(errors) {
   }, 50);
   return { ...errors, summary: PROBLEMS_MESSAGE };
 }
+
+// A facilitator's mobile number is required: exactly 10 digits. Spaces typed
+// or pasted into it are ignored. Returns a message, or null if it is fine.
+export function ffMobileError(mobile) {
+  const text = mobile.replace(/\s/g, "");
+  if (text === "") {
+    return "Please enter the facilitator's mobile number";
+  }
+  if (!/^[0-9]{10}$/.test(text)) {
+    return "Mobile number must be exactly 10 digits";
+  }
+  return null;
+}
+
+// "9876543210" is easier to read as "98765 43210".
+export function formatMobile(mobile) {
+  return mobile && mobile.length === 10
+    ? `${mobile.slice(0, 5)} ${mobile.slice(5)}`
+    : mobile || "";
+}

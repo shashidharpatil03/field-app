@@ -26,7 +26,7 @@ All data in this repository is **made up**. There are no real farmers, no passwo
 
 ### For the PU manager
 
-Everything above for all facilitators in the PU, plus **PU Management** (online only): add, drop, delete and bring back learning groups, add facilitators, mark a facilitator as left, and move groups from one facilitator to another (one group or several at a time).
+Everything above for all facilitators in the PU, plus **PU Management** (online only): add, drop, delete and bring back learning groups, add facilitators (a 10-digit mobile number is required, can be changed later, and the manager can call from the list), mark a facilitator as left, and move groups from one facilitator to another (one group or several at a time).
 
 ### Data points collected per farmer
 

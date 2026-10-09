@@ -219,7 +219,24 @@ export const translations = {
     heroLabel: "Number of Farmers ({season} season)",
     dashTitle: "Number of Farmers",
     dashSeason: "{season} season",
-    thisYearTitle: "Farmer Profile ({season})",
+    thisYearTitle: "Farmer Data ({season})",
+    ffChartTitle: "Progress by facilitator",
+    ffChartHelp: "Bars: farmers updated. Yellow dots: farmers still to update.",
+    ffChartLabel:
+      "Chart of farmers updated and still to update for each facilitator",
+    ffChartDots: "Still to update",
+    ffChartTapHint: "Tap a bar to see the facilitator.",
+    weeklyTitle: "Weekly progress",
+    weeklyHelp:
+      "Bars: farmers updated each week. Line: farmers still to update.",
+    weeklyBars: "Farmers updated",
+    weeklyLine: "Still to update",
+    weeklyChartLabel:
+      "Chart of farmers updated each week and farmers still to update",
+    weeklyThisWeek: "This week",
+    weeklyWeekOf: "Week of {day}",
+    weeklySummary: "{updated} updated · {still} still to update",
+    weeklyTapHint: "Tap a bar to see that week.",
     thisYearNote:
       "Total current farmers: {total} (continued + newly added). Dropped out and still to update are not included.",
     seasonFilter_new: "New this season",
@@ -294,6 +311,12 @@ export const translations = {
     preparingData: "Getting your data ready…",
     addFf: "Add facilitator",
     ffFullName: "Full name",
+    ffMobile: "Mobile number",
+    ffMobileHelp:
+      "Used to call this facilitator. Each number can be used only once.",
+    changeNumber: "Change number",
+    changeNumberTitle: "New mobile number for {name}",
+    ffMobileChanged: "{name}'s mobile number was changed.",
     save: "Save",
     saving: "Saving...",
     markLeft: "Mark as left",
@@ -532,7 +555,25 @@ export const translations = {
     heroLabel: "शेतकऱ्यांची संख्या ({season} हंगाम)",
     dashTitle: "शेतकऱ्यांची संख्या",
     dashSeason: "{season} हंगाम",
-    thisYearTitle: "शेतकरी प्रोफाइल ({season})",
+    thisYearTitle: "शेतकरी माहिती ({season})",
+    ffChartTitle: "सुविधाकारानुसार प्रगती",
+    ffChartHelp:
+      "स्तंभ: अद्ययावत केलेले शेतकरी. पिवळे ठिपके: अद्याप अद्ययावत न केलेले शेतकरी.",
+    ffChartLabel:
+      "प्रत्येक सुविधाकाराचे अद्ययावत केलेले आणि अद्याप बाकी शेतकरी दाखवणारा आलेख",
+    ffChartDots: "अद्याप अद्ययावत न केलेले",
+    ffChartTapHint: "सुविधाकार पाहण्यासाठी स्तंभावर टॅप करा.",
+    weeklyTitle: "साप्ताहिक प्रगती",
+    weeklyHelp:
+      "स्तंभ: दर आठवड्यात अद्ययावत केलेले शेतकरी. रेषा: अद्याप अद्ययावत न केलेले शेतकरी.",
+    weeklyBars: "अद्ययावत केलेले शेतकरी",
+    weeklyLine: "अद्याप अद्ययावत न केलेले",
+    weeklyChartLabel:
+      "दर आठवड्यात अद्ययावत केलेले आणि अद्याप अद्ययावत न केलेले शेतकरी दाखवणारा आलेख",
+    weeklyThisWeek: "या आठवड्यात",
+    weeklyWeekOf: "आठवडा: {day}",
+    weeklySummary: "{updated} अद्ययावत · {still} अद्याप बाकी",
+    weeklyTapHint: "त्या आठवड्याची माहिती पाहण्यासाठी स्तंभावर टॅप करा.",
     thisYearNote:
       "सध्याचे एकूण शेतकरी: {total} (सुरू राहिलेले + नवीन जोडलेले). सोडून गेलेले आणि अद्याप अद्ययावत न केलेले यात धरलेले नाहीत.",
     seasonFilter_new: "या हंगामात नवीन",
@@ -569,6 +610,12 @@ export const translations = {
     offlineNote: "कनेक्शन नाही. {time} रोजी जतन केलेली यादी दाखवत आहे.",
     addFf: "फॅसिलिटेटर जोडा",
     ffFullName: "पूर्ण नाव",
+    ffMobile: "मोबाइल नंबर",
+    ffMobileHelp:
+      "या फॅसिलिटेटरला फोन करण्यासाठी. प्रत्येक नंबर फक्त एकदाच वापरता येतो.",
+    changeNumber: "नंबर बदला",
+    changeNumberTitle: "{name} यांचा नवीन मोबाइल नंबर",
+    ffMobileChanged: "{name} यांचा मोबाइल नंबर बदलला.",
     save: "जतन करा",
     saving: "जतन होत आहे...",
     markLeft: "सोडून गेले म्हणून नोंदवा",

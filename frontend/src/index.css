@@ -3461,3 +3461,135 @@ textarea {
   font-size: 12px;
   font-weight: 400;
 }
+
+/* ---- Facilitator rows: mobile number, call, change number --------------- */
+.pu-ffinfo {
+  min-width: 0;
+}
+
+.pu-ffactions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pu-link {
+  margin: 4px 0 0;
+  padding: 6px 0;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  color: var(--heading);
+  font-weight: 700;
+  text-decoration: underline;
+  text-align: left;
+}
+
+/* ---- weekly progress chart on the dashboard ---- */
+
+.weekly-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.weekly-help {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.weekly-svg {
+  display: block;
+}
+
+.weekly-grid {
+  stroke: #d5e6e1;
+  stroke-width: 1;
+}
+
+.weekly-axis {
+  stroke: #9db8b1;
+  stroke-width: 1;
+}
+
+.weekly-tick {
+  font-size: 10px;
+  fill: var(--muted);
+}
+
+.weekly-tick-right {
+  fill: #b36b00;
+}
+
+.weekly-bar {
+  fill: #0a7a6c;
+  opacity: 0.55;
+}
+
+.weekly-bar-on {
+  fill: #0a5a52;
+  opacity: 1;
+}
+
+.weekly-line {
+  fill: none;
+  stroke: #e08a00;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.weekly-dot {
+  fill: #e08a00;
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+.weekly-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 13px;
+}
+
+.weekly-legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.weekly-key-bar {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: #0a7a6c;
+  display: inline-block;
+}
+
+.weekly-key-line {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  background: #e08a00;
+  display: inline-block;
+}
+
+.weekly-pick {
+  background: var(--sand, #dff2ee);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.weekly-key-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #e08a00;
+  display: inline-block;
+}

@@ -100,6 +100,109 @@ function lgList(snapshot) {
   });
 }
 
+const DAY = 24 * 60 * 60 * 1000;
+const RESTORE_TAG = "Learning group brought back";
+
+// Which week of the season (0 = the first) a day falls in.
+function weekOf(day, startMs, weekCount) {
+  const ms = Date.parse(`${day.slice(0, 10)}T00:00:00Z`);
+  return Math.min(
+    Math.max(Math.floor((ms - startMs) / (7 * DAY)), 0),
+    weekCount - 1,
+  );
+}
+
+// Week by week since the season began: farmers updated that week (continued
+// + new + dropped out, added into one number) and how many of last season's
+// farmers were still to update at the end of it. Same rules as the server.
+function weeklyProgress(snapshot, all, cohort) {
+  const start = snapshot.season.start;
+  const startMs = Date.parse(`${start}T00:00:00Z`);
+  const now = new Date();
+  const todayMs = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const weekCount = Math.max(
+    1,
+    Math.floor((todayMs - startMs) / (7 * DAY)) + 1,
+  );
+  const updated = new Array(weekCount).fill(0);
+  const cleared = new Array(weekCount).fill(0);
+  const today = new Date(todayMs).toISOString();
+
+  for (const f of all) {
+    const kind = f.season_status;
+    if (kind !== "new" && kind !== "continued" && kind !== "dropped") continue;
+    // The day of the first update this season. Newest entries come first.
+    let day = null;
+    if (kind === "new") {
+      day = f.registered_on;
+    } else {
+      const entries = snapshot.changes[String(f.id)] ?? [];
+      let restoreId = 0;
+      for (const e of entries) {
+        if (e.field === "Participation" && e.reason === RESTORE_TAG) {
+          restoreId = Math.max(restoreId, e.id);
+        }
+      }
+      for (const e of entries) {
+        const counts =
+          kind === "continued"
+            ? e.field !== "Participation" && e.id > restoreId
+            : e.field === "Participation" && e.new_value === "Dropped out";
+        if (
+          counts &&
+          e.changed_on >= start &&
+          (day === null || e.changed_on < day)
+        ) {
+          day = e.changed_on;
+        }
+      }
+    }
+    // A change made without signal has no entry yet: count it as today.
+    const week = weekOf(day || today, startMs, weekCount);
+    updated[week] += 1;
+    if (kind !== "new") cleared[week] += 1;
+  }
+
+  let still = cohort;
+  return updated.map((n, week) => {
+    still -= cleared[week];
+    return {
+      from: new Date(startMs + week * 7 * DAY).toISOString().slice(0, 10),
+      updated: n,
+      still_to_update: still,
+    };
+  });
+}
+
+// For each facilitator who has groups now: farmers updated this season
+// (continued + new + dropped out) and farmers still to update. Farmers count
+// under whoever has their group now. Same rules as the server.
+function progressByFacilitator(snapshot, all) {
+  const groups = {};
+  for (const lg of snapshot.lgs) {
+    groups[lg.id] = lg;
+  }
+  const people = {};
+  for (const f of all) {
+    const lg = groups[f.lg_id];
+    if (!lg || !lg.ff_id) continue;
+    const updated =
+      f.season_status === "new" ||
+      f.season_status === "continued" ||
+      f.season_status === "dropped";
+    if (!updated && f.season_status !== "to_update") continue;
+    const row = (people[lg.ff_id] ??= {
+      ff_id: lg.ff_id,
+      name: lg.ff_name,
+      updated: 0,
+      still_to_update: 0,
+    });
+    if (updated) row.updated += 1;
+    else row.still_to_update += 1;
+  }
+  return Object.values(people).sort((a, b) => a.name.localeCompare(b.name));
+}
+
 function dashboard(snapshot, params) {
   const all = filterFarmers(
     snapshot,
@@ -147,6 +250,14 @@ function dashboard(snapshot, params) {
       dropped: count(all, "dropped"),
       to_update: count(all, "to_update"),
     },
+    weekly: weeklyProgress(
+      snapshot,
+      all,
+      count(all, "continued", "dropped", "to_update"),
+    ),
+    ...(snapshot.role === "pu_manager" && !params.get("ff_id")
+      ? { by_ff: progressByFacilitator(snapshot, all) }
+      : {}),
   };
 }
 

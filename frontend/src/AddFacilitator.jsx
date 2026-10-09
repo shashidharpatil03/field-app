@@ -1,21 +1,31 @@
 import { useState } from "react";
 import { apiFetch } from "./api.js";
 import { useT } from "./i18n.jsx";
-import { nameError } from "./farmerRules.js";
+import { nameError, ffMobileError } from "./farmerRules.js";
 import Required from "./Required.jsx";
 
 function AddFacilitator({ onCancel, onDone }) {
   const t = useT();
   const [name, setName] = useState("");
+  const [mobile, setMobile] = useState("");
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
   async function handleSave(event) {
     event.preventDefault();
 
-    const message = nameError(name, "facilitator");
-    if (message) {
-      setErrors({ name: message });
+    // Both answers are checked, so the person sees every problem at once.
+    const found = {};
+    const nameMessage = nameError(name, "facilitator");
+    if (nameMessage) {
+      found.name = nameMessage;
+    }
+    const mobileMessage = ffMobileError(mobile);
+    if (mobileMessage) {
+      found.mobile = mobileMessage;
+    }
+    if (Object.keys(found).length > 0) {
+      setErrors(found);
       return;
     }
 
@@ -25,7 +35,7 @@ function AddFacilitator({ onCancel, onDone }) {
       const response = await apiFetch("http://localhost:8000/pu/facilitators", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name }),
+        body: JSON.stringify({ name: name, mobile: mobile }),
       });
       const data = await response.json();
 
@@ -60,6 +70,32 @@ function AddFacilitator({ onCancel, onDone }) {
           className={errors.name ? "has-error" : ""}
         />
         {errors.name && <p className="error">{errors.name}</p>}
+      </div>
+
+      <div className="field">
+        <label htmlFor="ff-mobile">
+          {t("ffMobile")}
+          <Required />
+        </label>
+        <input
+          id="ff-mobile"
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          value={mobile}
+          // Only digits are kept, and at most 10 (a pasted "98765 43210"
+          // becomes "9876543210").
+          onChange={(e) => {
+            setMobile(e.target.value.replace(/\D/g, "").slice(0, 10));
+            setErrors({});
+          }}
+          className={errors.mobile ? "has-error" : ""}
+        />
+        {errors.mobile ? (
+          <p className="error">{errors.mobile}</p>
+        ) : (
+          <p className="hint">{t("ffMobileHelp")}</p>
+        )}
       </div>
 
       {errors.form && <p className="error">{errors.form}</p>}

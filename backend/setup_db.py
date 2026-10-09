@@ -56,7 +56,11 @@ cursor.execute("""
         pu_id INTEGER NOT NULL REFERENCES pus(id),
         active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
         left_on TEXT,
-        ff_number INTEGER
+        ff_number INTEGER,
+        mobile TEXT CHECK (
+            mobile IS NULL
+            OR (length(mobile) = 10 AND mobile NOT GLOB '*[^0-9]*')
+        )
     )
 """)
 
@@ -248,14 +252,27 @@ next_ff_number = {}
 facilitator_rows = []
 for ff_name, ff_pu_id in facilitators:
     next_ff_number[ff_pu_id] = next_ff_number.get(ff_pu_id, 0) + 1
-    facilitator_rows.append((ff_name, ff_pu_id, next_ff_number[ff_pu_id]))
+    # A made-up mobile number as well, different from every farmer's.
+    facilitator_rows.append(
+        (ff_name, ff_pu_id, next_ff_number[ff_pu_id], random_mobile())
+    )
 cursor.executemany(
-    "INSERT INTO facilitators (name, pu_id, ff_number) VALUES (?, ?, ?)",
+    "INSERT INTO facilitators (name, pu_id, ff_number, mobile) VALUES (?, ?, ?, ?)",
     facilitator_rows,
 )
 cursor.execute(
     "CREATE UNIQUE INDEX facilitators_number_unique "
     "ON facilitators(pu_id, ff_number)"
+)
+cursor.execute(
+    "CREATE UNIQUE INDEX facilitators_mobile_unique ON facilitators(mobile)"
+)
+
+# Makes the dashboard and weekly chart fast: they look up each farmer's
+# change history by farmer, field and date.
+cursor.execute(
+    "CREATE INDEX farmer_change_log_lookup "
+    "ON farmer_change_log(farmer_id, field, changed_on)"
 )
 cursor.executemany(
     "INSERT INTO learning_groups (pu_id, village_id, lg_number) VALUES (?, ?, ?)",

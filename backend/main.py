@@ -1,7 +1,7 @@
 import re
 import sqlite3
 import unicodedata
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -692,6 +692,99 @@ DASHBOARD_FROM = """
 """
 
 
+def weekly_progress(connection, from_sql, scope, parts, first_day, cohort):
+    """Week by week since the season began: how many farmers were updated
+    that week (continued + new + dropped out, added into one number) and how
+    many of last season's farmers were still to update at the end of it.
+    A farmer counts in the week of their first update this season (a new
+    farmer: the week they were registered)."""
+    start = first_day.isoformat()
+    today = date.today()
+    week_count = (today - first_day).days // 7 + 1
+    updated = [0] * week_count
+    cleared = [0] * week_count  # last season's farmers done that week
+    restore_part = (
+        "COALESCE((SELECT MAX(r.id) FROM farmer_change_log r "
+        "WHERE r.farmer_id = farmers.id AND r.field = 'Participation' "
+        "AND r.reason = ?), 0)"
+    )
+    kinds = {
+        "new": ("farmers.registered_on", [], False),
+        "continued": (
+            "(SELECT MIN(e.changed_on) FROM farmer_change_log e "
+            "WHERE e.farmer_id = farmers.id AND e.field != 'Participation' "
+            f"AND e.changed_on >= ? AND e.id > {restore_part})",
+            [start, LG_RESTORE_TAG],
+            True,
+        ),
+        "dropped": (
+            "(SELECT MIN(d.changed_on) FROM farmer_change_log d "
+            "WHERE d.farmer_id = farmers.id AND d.field = 'Participation' "
+            "AND d.new_value = 'Dropped out' AND d.changed_on >= ?)",
+            [start],
+            True,
+        ),
+    }
+    for key, (date_sql, date_values, from_last_season) in kinds.items():
+        sql, values = parts[key]
+        rows = connection.execute(
+            "SELECT " + date_sql + " " + from_sql + " AND " + sql,
+            date_values + scope + values,
+        ).fetchall()
+        for (day,) in rows:
+            # No date on record (should not happen): count it as today.
+            when = date.fromisoformat(day[:10]) if day else today
+            week = min(max((when - first_day).days // 7, 0), week_count - 1)
+            updated[week] += 1
+            if from_last_season:
+                cleared[week] += 1
+    weeks = []
+    still = cohort
+    for week in range(week_count):
+        still -= cleared[week]
+        weeks.append(
+            {
+                "from": (first_day + timedelta(days=7 * week)).isoformat(),
+                "updated": updated[week],
+                "still_to_update": still,
+            }
+        )
+    return weeks
+
+
+def progress_by_facilitator(connection, from_sql, scope, parts):
+    """For each facilitator now looking after groups: farmers updated this
+    season (continued + new + dropped out) and farmers still to update.
+    Farmers count under whoever has their group now, so when a group moves
+    to another facilitator its farmers move with it."""
+    people = {}
+    for key, field in (
+        ("new", "updated"),
+        ("continued", "updated"),
+        ("dropped", "updated"),
+        ("to_update", "still_to_update"),
+    ):
+        sql, values = parts[key]
+        rows = connection.execute(
+            "SELECT assignments.ff_id, COUNT(*) "
+            + from_sql
+            + " AND assignments.ff_id IS NOT NULL AND "
+            + sql
+            + " GROUP BY assignments.ff_id",
+            scope + values,
+        ).fetchall()
+        for ff_id, number in rows:
+            row = people.setdefault(
+                ff_id, {"ff_id": ff_id, "updated": 0, "still_to_update": 0}
+            )
+            row[field] += number
+    for ff_id, row in people.items():
+        row["name"] = connection.execute(
+            "SELECT name FROM facilitators WHERE id = ?", (ff_id,)
+        ).fetchone()[0]
+    return sorted(people.values(), key=lambda row: row["name"])
+
+
 @app.get("/farmers/dashboard")
 def farmers_dashboard(
     lg_id: Optional[int] = None,
@@ -773,7 +866,16 @@ def farmers_dashboard(
             "dropped": count("dropped"),
             "to_update": count("to_update"),
         },
+        "weekly": weekly_progress(
+            connection, from_sql, scope, parts, first_day, count("cohort")
+        ),
     }
+    # Only the manager sees the facilitator chart, and it makes no sense
+    # for a single facilitator.
+    if user["role"] == "pu_manager" and ff_id is None:
+        result["by_ff"] = progress_by_facilitator(
+            connection, from_sql, scope, parts
+        )
     connection.close()
     return result
 
@@ -1146,6 +1248,7 @@ def sync_snapshot(user: dict = Depends(current_user)):
 
     return {
         "server_time": datetime.now().isoformat(timespec="seconds"),
+        "role": user["role"],
         "season": {
             "start": first_day.isoformat(),
             "label": season_label(first_day),
@@ -2207,6 +2310,7 @@ def pu_facilitators(user: dict = Depends(current_user)):
             facilitators.name,
             facilitators.active,
             facilitators.left_on,
+            facilitators.mobile,
             {FF_CODE_SQL} AS ff_code,
             (SELECT COUNT(*) FROM assignments
              JOIN learning_groups ON learning_groups.id = assignments.lg_id
@@ -2232,28 +2336,53 @@ def pu_facilitators(user: dict = Depends(current_user)):
 
 class NewFacilitator(BaseModel):
     name: str = ""
+    mobile: str = ""
+
+
+def clean_mobile(text):
+    """Digits only: spaces typed or pasted into the number are ignored."""
+    return "".join(text.split())
+
+
+def ff_mobile_error(connection, mobile, except_ff_id=0):
+    """Returns a message if this is not an acceptable facilitator mobile."""
+    if mobile == "":
+        return "Please enter the facilitator's mobile number"
+    if not re.fullmatch(r"[0-9]{10}", mobile):
+        return "Mobile number must be exactly 10 digits"
+    other = connection.execute(
+        "SELECT id FROM facilitators WHERE mobile = ? AND id != ?",
+        (mobile, except_ff_id),
+    ).fetchone()
+    if other is not None:
+        return "This mobile number is already used by another facilitator"
+    return None
 
 
 @app.post("/pu/facilitators")
 def add_facilitator(body: NewFacilitator, user: dict = Depends(current_user)):
     require_manager(user)
     name = " ".join(body.name.split())
-
-    message = name_error(name, "facilitator")
-    if message:
-        raise HTTPException(status_code=400, detail={"name": message})
+    mobile = clean_mobile(body.mobile)
 
     connection = sqlite3.connect("field.db")
-    same = connection.execute(
-        "SELECT id FROM facilitators WHERE pu_id = ? AND lower(name) = lower(?)",
-        (user["pu_id"], name),
-    ).fetchone()
-    if same is not None:
+    errors = {}
+    message = name_error(name, "facilitator")
+    if message:
+        errors["name"] = message
+    else:
+        same = connection.execute(
+            "SELECT id FROM facilitators WHERE pu_id = ? AND lower(name) = lower(?)",
+            (user["pu_id"], name),
+        ).fetchone()
+        if same is not None:
+            errors["name"] = "A facilitator with this name already exists in your PU"
+    message = ff_mobile_error(connection, mobile)
+    if message:
+        errors["mobile"] = message
+    if errors:
         connection.close()
-        raise HTTPException(
-            status_code=400,
-            detail={"name": "A facilitator with this name already exists in your PU"},
-        )
+        raise HTTPException(status_code=400, detail=errors)
 
     # The next number in this PU. Facilitators are never deleted, only marked
     # as left, so a number is never given out twice.
@@ -2262,8 +2391,9 @@ def add_facilitator(body: NewFacilitator, user: dict = Depends(current_user)):
         (user["pu_id"],),
     ).fetchone()[0]
     cursor = connection.execute(
-        "INSERT INTO facilitators (name, pu_id, ff_number) VALUES (?, ?, ?)",
-        (name, user["pu_id"], ff_number),
+        "INSERT INTO facilitators (name, pu_id, ff_number, mobile) "
+        "VALUES (?, ?, ?, ?)",
+        (name, user["pu_id"], ff_number, mobile),
     )
     ff_id = cursor.lastrowid
     ff_code = connection.execute(
@@ -2280,6 +2410,45 @@ def add_facilitator(body: NewFacilitator, user: dict = Depends(current_user)):
     connection.commit()
     connection.close()
     return {"id": ff_id, "ff_code": ff_code}
+
+
+class FacilitatorMobile(BaseModel):
+    mobile: str = ""
+
+
+@app.post("/pu/facilitators/{ff_id}/mobile")
+def change_facilitator_mobile(
+    ff_id: int, body: FacilitatorMobile, user: dict = Depends(current_user)
+):
+    """The PU manager gives a facilitator a new mobile number."""
+    require_manager(user)
+    mobile = clean_mobile(body.mobile)
+    connection = sqlite3.connect("field.db")
+
+    ff = connection.execute(
+        "SELECT id, name, pu_id, active FROM facilitators WHERE id = ?", (ff_id,)
+    ).fetchone()
+    if ff is None:
+        fail(connection, 404, "Facilitator not found", True)
+    if ff[2] != user["pu_id"]:
+        fail(connection, 403, "You do not have access to this facilitator", True)
+    if not ff[3]:
+        fail(connection, 400, "This facilitator has left", True)
+
+    message = ff_mobile_error(connection, mobile, ff_id)
+    if message:
+        connection.close()
+        raise HTTPException(status_code=400, detail={"mobile": message})
+
+    connection.execute(
+        "UPDATE facilitators SET mobile = ? WHERE id = ?", (mobile, ff_id)
+    )
+    log_activity(
+        connection, user, "Facilitator mobile changed", f"Facilitator {ff_id}, {ff[1]}"
+    )
+    connection.commit()
+    connection.close()
+    return {"ok": True, "mobile": mobile}
 
 
 class LeaveAssignment(BaseModel):

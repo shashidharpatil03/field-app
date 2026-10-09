@@ -3,6 +3,9 @@ import ModuleHeader from "./ModuleHeader.jsx";
 import { apiFetch } from "./api.js";
 import { useT } from "./i18n.jsx";
 import AddFacilitator from "./AddFacilitator.jsx";
+import ChangeFfMobile from "./ChangeFfMobile.jsx";
+import { PhoneIcon } from "./icons.jsx";
+import { formatMobile } from "./farmerRules.js";
 import LgTab from "./LgTab.jsx";
 import { formatDate } from "./dates.js";
 
@@ -19,6 +22,7 @@ function PuManagement({ onHome }) {
   const [offline, setOffline] = useState(false);
   const [addingFf, setAddingFf] = useState(false);
   const [leavingFf, setLeavingFf] = useState(null);
+  const [changingFf, setChangingFf] = useState(null);
   const [showLeft, setShowLeft] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -57,6 +61,7 @@ function PuManagement({ onHome }) {
     setView(name);
     setMessage("");
     setAddingFf(false);
+    setChangingFf(null);
     if (name === "ffs") {
       setLeavingFf(null);
     }
@@ -124,26 +129,60 @@ function PuManagement({ onHome }) {
 
         {active.map((f) => (
           <div className="pu-ffrow" key={f.id}>
-            <div>
+            <div className="pu-ffinfo">
               <strong>{f.name}</strong>
-              <small>{f.ff_code}</small>
+              <small>
+                {f.ff_code} · {formatMobile(f.mobile)}
+              </small>
               <small>
                 {t("groupsCount", { n: f.lg_count })} ·{" "}
                 {t("farmersCount", { n: f.farmer_count })}
               </small>
+              <button
+                className="pu-link"
+                onClick={() => {
+                  setMessage("");
+                  setChangingFf(f);
+                }}
+              >
+                {t("changeNumber")}
+              </button>
             </div>
-            <button
-              className="pu-leave"
-              onClick={() => {
-                setMessage("");
-                setLeavingFf(f);
-                setView("lgs");
-              }}
-            >
-              {t("ffLeavingBtn")}
-            </button>
+            <div className="pu-ffactions">
+              {f.mobile && (
+                <a
+                  className="sd-call"
+                  href={`tel:${f.mobile}`}
+                  aria-label={t("callFarmer", { name: f.name })}
+                >
+                  <PhoneIcon />
+                </a>
+              )}
+              <button
+                className="pu-leave"
+                onClick={() => {
+                  setMessage("");
+                  setLeavingFf(f);
+                  setView("lgs");
+                }}
+              >
+                {t("ffLeavingBtn")}
+              </button>
+            </div>
           </div>
         ))}
+
+        {changingFf && (
+          <ChangeFfMobile
+            ff={changingFf}
+            onClose={() => setChangingFf(null)}
+            onDone={async (text) => {
+              await load();
+              setChangingFf(null);
+              setMessage(text);
+            }}
+          />
+        )}
 
         {left.length > 0 && (
           <div>

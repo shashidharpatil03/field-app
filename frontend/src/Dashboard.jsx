@@ -5,6 +5,8 @@ import { saveDashCache, readDashCache, formatWhen } from "./offline.js";
 import FarmerNav from "./FarmerNav.jsx";
 import FarmersCard from "./FarmersCard.jsx";
 import FarmerSummary from "./FarmerSummary.jsx";
+import WeeklyChart from "./WeeklyChart.jsx";
+import FacilitatorChart from "./FacilitatorChart.jsx";
 
 // The first screen of Farmer Data: the numbers, then how far the update of
 // last season's farmers has got. With no signal it shows the numbers saved
@@ -202,6 +204,8 @@ function Dashboard({ nav, onOpen, lgs = [], isManager = false }) {
       )}
 
       <FarmersCard data={data} onOpen={openWithGroup} />
+      <WeeklyChart weekly={data?.weekly} />
+      {isManager && <FacilitatorChart people={data?.by_ff} />}
       <FarmerSummary data={data} onOpen={openWithGroup} />
     </div>
   );
