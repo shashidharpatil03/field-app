@@ -13,7 +13,7 @@ import Required from "./Required.jsx";
 import LandFields from "./LandFields.jsx";
 import NameFields from "./NameFields.jsx";
 import { apiFetch } from "./api.js";
-import { addPending, isNetworkError } from "./offline.js";
+import { addPending, isNetworkError, newClientId } from "./offline.js";
 
 function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
   const [first, setFirst] = useState(draft ? draft.first_name : "");
@@ -54,6 +54,11 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
   // Set when this form is already kept on the phone: it is then saved there
   // again, and sent from there.
   const waitingKey = draft && draft.pendingKey ? draft.pendingKey : null;
+  // This registration's own number, kept for as long as the form is open (or
+  // from the draft it continues), so a resend is never taken for a new one.
+  const [clientId] = useState(
+    () => (draft && draft.client_id) || newClientId(),
+  );
   const [step, setStep] = useState("form");
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
@@ -76,6 +81,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
       area_under_cotton: Number.isNaN(cottonValue) ? null : cottonValue,
       water_regime: water,
       confirmed_large: isLarge && confirmed,
+      client_id: clientId,
     };
   }
 

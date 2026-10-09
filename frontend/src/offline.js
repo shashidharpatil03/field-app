@@ -54,6 +54,23 @@ function newLocalId() {
   return -(Date.now() * 1000 + Math.floor(Math.random() * 1000));
 }
 
+// One number per registration, made on the phone when the form is opened and
+// sent with every request about it. If a reply is lost and the phone sends
+// the registration again, the server recognises the number instead of
+// registering the farmer twice. (crypto.randomUUID needs https, so this
+// uses getRandomValues, which also works on a plain http test address.)
+export function newClientId() {
+  const bytes = new Uint8Array(16);
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export function getPending(userId = getApiUser()) {
   return read(`pending_${userId}`, []).map((item) =>
     item.kind || item.localId
@@ -307,6 +324,19 @@ export async function sendItem(item) {
   const data = await parse(response);
 
   if (!response.ok) {
+    // The draft is gone (404), or the server says this registration was
+    // already made (409). If the reply to it was lost, the server still
+    // knows this registration's number, so ask it.
+    const clientId = item.data && item.data.client_id;
+    const maybeDone =
+      (response.status === 404 && draftId !== null) || response.status === 409;
+    if (maybeDone && item.submit && clientId) {
+      const known = await apiFetch(`${BASE}/submissions/${clientId}`);
+      if (known.ok) {
+        const farmer = await parse(known);
+        return { status: "done", code: farmer.farmer_code };
+      }
+    }
     if (response.status === 404 && draftId !== null) {
       return {
         status: "rejected",

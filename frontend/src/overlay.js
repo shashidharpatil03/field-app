@@ -178,6 +178,7 @@ function applyForm(snapshot, item, me) {
       area_under_cotton: data.area_under_cotton,
       water_regime: data.water_regime,
       confirmed_large: data.confirmed_large ? 1 : 0,
+      client_id: data.client_id ?? null,
       updated_at: item.savedAt.slice(0, 19),
       lg_code: lg.lg_code,
       village: lg.village,

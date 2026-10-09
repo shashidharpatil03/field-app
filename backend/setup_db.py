@@ -120,6 +120,7 @@ cursor.execute("""
         registered_on TEXT,
         registered_by INTEGER,
         registered_at TEXT,
+        client_id TEXT,
         UNIQUE (lg_id, farmer_number)
     )
 """)
@@ -139,6 +140,7 @@ cursor.execute("""
         area_under_cotton REAL,
         water_regime TEXT NOT NULL DEFAULT '',
         confirmed_large INTEGER NOT NULL DEFAULT 0,
+        client_id TEXT,
         updated_at TEXT NOT NULL
     )
 """)
@@ -266,6 +268,18 @@ cursor.execute(
 )
 cursor.execute(
     "CREATE UNIQUE INDEX facilitators_mobile_unique ON facilitators(mobile)"
+)
+
+# One number per registration, made by the phone. If a reply is lost and the
+# phone sends the same registration again, the server recognises it instead
+# of registering the farmer twice.
+cursor.execute(
+    "CREATE UNIQUE INDEX farmers_client_id_unique ON farmers(client_id) "
+    "WHERE client_id IS NOT NULL"
+)
+cursor.execute(
+    "CREATE UNIQUE INDEX drafts_client_id_unique ON farmer_drafts(client_id) "
+    "WHERE client_id IS NOT NULL"
 )
 
 # Makes the dashboard and weekly chart fast: they look up each farmer's

@@ -1,6 +1,6 @@
 # Co-farm Field Tools
 
-A mobile-friendly app for collecting and maintaining **farmer profile data** in the field. It works with or without a phone signal. Built as a practical assessment: a small, well-finished slice of a MyBCIData (CommCare) style workflow, not a full replacement.
+A mobile-friendly app for collecting and maintaining **Farmer data** in the field. It works offline
 
 All data in this repository is **made up**. There are no real farmers, no passwords, no keys.
 
@@ -8,9 +8,9 @@ All data in this repository is **made up**. There are no real farmers, no passwo
 
 ## What the app does
 
-**Module chosen: Farmer Profile (Farmer Data).** The journey it supports end to end:
+**Farmer Data** module was chosen for this practical assessment. 
 
-> A Producer Unit (PU) manager sets up Learning Groups (LGs) and facilitators. A field facilitator (FF) registers new farmers, updates last season's farmers, reviews and sends the data, and can see what was sent. Everything keeps working with no signal and sends itself when the signal returns.
+> A field facilitator (FF) registers new farmers, updates last season's farmers, reviews and sends the data, and can see what was sent. Everything keeps working with no signal and sends itself when the signal returns. A Producer Unit Manager can add or drop an LG; add or drop an FF; shift LGs from one FF to another. It also shows dashboard for FFs and PUMs to track data collection progress and use the data they collect.
 
 ### For the field facilitator
 
@@ -21,12 +21,12 @@ All data in this repository is **made up**. There are no real farmers, no passwo
 | **Register / Edit farmer** | Step-by-step form with a **Review** step before saving. Checks happen as the person types and again on the server. |
 | **Incomplete** | Saved drafts. Start a registration, stop, come back later. |
 | **Sent** | Everything already sent, with the time it reached the server. |
-| **Waiting to be sent (Data sync)** | Changes made without signal, waiting to go. Shows anything the server refused, with the reason. |
-| **Language** | English and Marathi (newest screens not yet reviewed by a native speaker). |
+| **Ready to send** | Changes made without signal, waiting to go. Shows anything the server refused, with the reason. |
+| **Language** | English and Marathi |
 
 ### For the PU manager
 
-Everything above for all facilitators in the PU, plus **PU Management** (online only): add, drop, delete and bring back learning groups, add facilitators (a 10-digit mobile number is required, can be changed later, and the manager can call from the list), mark a facilitator as left, and move groups from one facilitator to another (one group or several at a time).
+Everything above for all facilitators in the PU, plus **PU Management** (online only): add, drop, delete and bring back learning groups, add facilitators, mark a facilitator as left, and move groups from one facilitator to another (one group or several at a time).
 
 ### Data points collected per farmer
 
@@ -57,7 +57,7 @@ Everything above for all facilitators in the PU, plus **PU Management** (online 
 
 | Part | Choice |
 | --- | --- |
-| Frontend | React 19 + Vite, plain JavaScript, no UI library, hand-written CSS |
+| Frontend | React 19 + Vite, plain JavaScript, |
 | Backend | Python, FastAPI, the standard `sqlite3` module (no ORM) |
 | Database | SQLite (`backend/field.db`, created locally, not committed) |
 | Offline | Service worker (app shell), IndexedDB (data copy on the phone), localStorage (waiting list) |
@@ -110,6 +110,7 @@ Stop any older `npm run preview` first. If it starts on port 4174 instead of 417
 2. Start the frontend with `npm run preview -- --host` and note your laptop's IP address.
 3. Open `http://<laptop-ip>:4173` on the phone.
 4. A service worker needs https. For a plain-http test on Android Chrome, enable `chrome://flags/#unsafe-treat-insecure-origin-as-secure` and add `http://<laptop-ip>:4173`. A real deployment would use https and does not need this.
+5. If the phone cannot reach the page on your Wi-Fi (some routers stop devices on Wi-Fi from talking to each other), turn on the laptop's **Mobile hotspot**, join it from the phone, and use the laptop's hotspot address (usually `http://192.168.137.1:4173`). This worked when the router blocked the connection.
 
 ### Existing database from an earlier version
 
@@ -162,20 +163,19 @@ frontend/
 
 - **No real sign-in.** The sign-in screen is a picker of made-up users and the server trusts an `X-User-Id` header. Fine for a demo, not for production. A real version needs proper authentication (for example one-time codes by SMS) and per-user tokens.
 - **Personal data on the phone.** The offline copy holds farmer names and mobile numbers. A lost phone is a risk, larger for a PU manager (all groups). A real version needs a device lock requirement, encryption and a way to wipe the copy remotely.
-- **Rare duplicate on a lost reply.** If a registration reaches the server but the reply is lost, it can be sent twice. The unique mobile number catches most of these. The fix is a client-generated unique ID per submission.
+- **Lost replies.** Each registration carries a number made on the phone. If a reply is lost and the phone sends the registration again, the server recognises the number and does not register the farmer twice. Forms kept on the phone *before* this was added have no number and behave as before. Admin actions such as adding a group are not queued, so they are not covered; a double tap there could still add two.
 - **Moved groups.** If the manager moves a group away from a facilitator while that facilitator is offline, their waiting edits for that group are refused at sync and shown with a reason.
 - **First sign-in on a phone needs signal**, to download the first data copy.
 - **Whole-copy sync.** The phone downloads everything it is allowed to see each time. Fine for hundreds of farmers, not for tens of thousands. A real version would send only what changed.
 - **Sent** shows only what has reached the server.
 - **Admin work is online only** by design.
-- **Marathi** for the newest screens was written with AI help and has not been reviewed by a native speaker.
 - **Not covered:** other modules (Farm, Sowing, Practice Adoption, Capacity Strengthening, RIR), which appear as "coming soon" tiles; photos and GPS; data export for analysts beyond the SQLite tables themselves.
 - **No automated tests yet.** Rules were checked by hand and with throwaway scripts.
 
 ## What I would do next
 
 1. Automated tests for the rules (land, names, season status) and for the sync rules.
-2. Unique ID per submission, so a lost reply can never create a duplicate.
+2. The same unique-number idea for edits and for admin actions (today only registrations carry one).
 3. One shared rules definition for server and browser, instead of two copies.
 4. Real authentication, device security, and https deployment.
 5. Delta sync, then more modules (Farm, Practice Adoption) on the same offline layer.

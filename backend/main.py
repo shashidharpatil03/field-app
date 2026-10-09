@@ -985,6 +985,8 @@ class DraftBody(BaseModel):
     area_under_cotton: Optional[float] = None
     water_regime: str = ""
     confirmed_large: bool = False
+    # Made by the phone once per registration, so a resend can be recognised.
+    client_id: str = ""
 
 
 def name_error(name, who):
@@ -1065,7 +1067,8 @@ def all_my_drafts(user: dict = Depends(current_user)):
                farmer_drafts.last_name, farmer_drafts.gender, farmer_drafts.growing_cotton,
                farmer_drafts.mobile, farmer_drafts.total_landholding,
                farmer_drafts.area_under_cotton, farmer_drafts.water_regime,
-               farmer_drafts.confirmed_large, farmer_drafts.updated_at,
+               farmer_drafts.confirmed_large, farmer_drafts.client_id,
+               farmer_drafts.updated_at,
                pus.code || '-' || printf('%03d', learning_groups.lg_number)
                    AS lg_code,
                villages.name AS village
@@ -1270,7 +1273,8 @@ def list_drafts(lg_id: int, user: dict = Depends(current_user)):
         """
         SELECT id, name, first_name, middle_name, last_name, gender,
                growing_cotton, mobile, total_landholding,
-               area_under_cotton, water_regime, confirmed_large, updated_at
+               area_under_cotton, water_regime, confirmed_large, client_id,
+               updated_at
         FROM farmer_drafts
         WHERE lg_id = ?
         ORDER BY updated_at DESC, id DESC
@@ -1279,6 +1283,15 @@ def list_drafts(lg_id: int, user: dict = Depends(current_user)):
     ).fetchall()
     connection.close()
     return [dict(row) for row in rows]
+
+
+def clean_client_id(text):
+    """The phone's number for one registration: 16 to 64 letters and digits,
+    or None when it is missing or does not look right."""
+    text = (text or "").strip()
+    if 16 <= len(text) <= 64 and text.isalnum():
+        return text
+    return None
 
 
 @app.post("/lgs/{lg_id}/drafts")
@@ -1298,19 +1311,40 @@ def create_draft(lg_id: int, body: DraftBody, user: dict = Depends(current_user)
     require_lg(connection, user, lg_id, True)
     require_active_lg(connection, lg_id, True)
 
+    client_id = clean_client_id(body.client_id)
+    if client_id is not None:
+        # The phone is sending this form again (the reply was lost): keep
+        # the draft it already made, with the newest answers.
+        earlier = connection.execute(
+            "SELECT id FROM farmer_drafts WHERE client_id = ?", (client_id,)
+        ).fetchone()
+        if earlier is not None:
+            connection.close()
+            return update_draft(earlier[0], body, user)
+        done = connection.execute(
+            "SELECT 1 FROM farmers WHERE client_id = ?", (client_id,)
+        ).fetchone()
+        if done is not None:
+            connection.close()
+            raise HTTPException(
+                status_code=409,
+                detail={"form": "This farmer was already registered."},
+            )
+
     growing = None if body.growing_cotton is None else int(body.growing_cotton)
     cursor = connection.execute(
         """
         INSERT INTO farmer_drafts
             (lg_id, name, first_name, middle_name, last_name, gender,
              growing_cotton, mobile, total_landholding,
-             area_under_cotton, water_regime, confirmed_large, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             area_under_cotton, water_regime, confirmed_large, client_id,
+             updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (lg_id, build_name(first, middle, last), first, middle, last,
          body.gender, growing, mobile,
          body.total_landholding, body.area_under_cotton, body.water_regime,
-         int(body.confirmed_large),
+         int(body.confirmed_large), client_id,
          datetime.now().isoformat(timespec="seconds")),
     )
     new_id = cursor.lastrowid
@@ -1342,14 +1376,16 @@ def update_draft(draft_id: int, body: DraftBody, user: dict = Depends(current_us
         SET name = ?, first_name = ?, middle_name = ?, last_name = ?,
             gender = ?, growing_cotton = ?, mobile = ?,
             total_landholding = ?, area_under_cotton = ?, water_regime = ?,
-            confirmed_large = ?, updated_at = ?
+            confirmed_large = ?, updated_at = ?,
+            client_id = COALESCE(client_id, ?)
         WHERE id = ?
         """,
         (build_name(first, middle, last), first, middle, last,
          body.gender, growing, mobile,
          body.total_landholding, body.area_under_cotton, body.water_regime,
          int(body.confirmed_large),
-         datetime.now().isoformat(timespec="seconds"), draft_id),
+         datetime.now().isoformat(timespec="seconds"),
+         clean_client_id(body.client_id), draft_id),
     )
     log_activity(connection, user, "Draft changed", f"Draft {draft_id}")
     connection.commit()
@@ -1384,7 +1420,7 @@ def submit_draft(draft_id: int, user: dict = Depends(current_user)):
     draft = connection.execute(
         "SELECT lg_id, first_name, middle_name, last_name, name, gender, "
         "growing_cotton, mobile, total_landholding, area_under_cotton, "
-        "water_regime, confirmed_large "
+        "water_regime, confirmed_large, client_id "
         "FROM farmer_drafts WHERE id = ?",
         (draft_id,),
     ).fetchone()
@@ -1393,7 +1429,7 @@ def submit_draft(draft_id: int, user: dict = Depends(current_user)):
         raise HTTPException(status_code=404, detail={"form": "Draft not found"})
 
     (lg_id, first, middle, last, old_name, gender, growing, mobile,
-     total, cotton, water, confirmed) = draft
+     total, cotton, water, confirmed, client_id) = draft
     first, middle, last = parts_from(first, middle, last, old_name)
     name = build_name(first, middle, last)
     require_active_lg(connection, lg_id, True)
@@ -1430,8 +1466,8 @@ def submit_draft(draft_id: int, user: dict = Depends(current_user)):
                 (lg_id, farmer_number, name, first_name, middle_name,
                  last_name, gender, growing_cotton, mobile,
                  total_landholding, area_under_cotton, water_regime,
-                 registered_on, registered_by, registered_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 registered_on, registered_by, registered_at, client_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             # The time is when the server received it, which for a form
             # kept on a phone without signal is the moment it was sent.
@@ -1439,7 +1475,8 @@ def submit_draft(draft_id: int, user: dict = Depends(current_user)):
              mobile or None,
              round(total, 2), cotton, water, date.today().isoformat(),
              user["id"],
-             datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")),
+             datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+             client_id),
         )
     except sqlite3.IntegrityError:
         # Two people saved the same mobile at the same moment: undo everything.
@@ -1468,6 +1505,33 @@ def submit_draft(draft_id: int, user: dict = Depends(current_user)):
     ).fetchone()[0]
     connection.close()
     return {"id": new_id, "farmer_code": code}
+
+
+@app.get("/submissions/{client_id}")
+def submission_status(client_id: str, user: dict = Depends(current_user)):
+    """Was the registration with this number already saved? The phone asks
+    when a reply was lost, to find out instead of guessing."""
+    key = clean_client_id(client_id)
+    connection = sqlite3.connect("field.db")
+    row = None
+    if key is not None:
+        row = connection.execute(
+            """
+            SELECT farmers.id,
+                   pus.code
+                       || '-' || printf('%03d', learning_groups.lg_number)
+                       || '-' || printf('%02d', farmers.farmer_number)
+            FROM farmers
+            JOIN learning_groups ON learning_groups.id = farmers.lg_id
+            JOIN pus ON pus.id = learning_groups.pu_id
+            WHERE farmers.client_id = ? AND farmers.registered_by = ?
+            """,
+            (key, user["id"]),
+        ).fetchone()
+    connection.close()
+    if row is None:
+        raise HTTPException(status_code=404, detail={"form": "Not found"})
+    return {"id": row[0], "farmer_code": row[1]}
 
 
 class FarmerEdit(BaseModel):
