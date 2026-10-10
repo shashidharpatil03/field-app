@@ -34,7 +34,8 @@ function PuManagement({ onHome }) {
       // Always the server's own answer, never the copy saved on the phone.
       apiFetch("http://localhost:8000/lgs", { fresh: true })
         .then((response) => response.json())
-        .then((data) => setLgs(data)),
+        // Dropped groups are listed on their own screen.
+        .then((data) => setLgs(data.filter((lg) => !lg.dropped_on))),
     ])
       .then(() => setOffline(false))
       .catch(() => setOffline(true))

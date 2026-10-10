@@ -209,17 +209,21 @@ function SubmitData({
     return lgs.reduce((sum, lg) => sum + countFor(lg, button), 0);
   }
 
-  // Last year's view lists only groups that have somebody under the chosen
-  // button. This year's lists every group, so a farmer can be added to a
-  // group that has none yet. While searching, only groups with a match.
+  // Each year lists the same groups under all three of its buttons, with 0
+  // where nobody fits that button. Last year: the groups that had farmers
+  // last year (this includes a group that was dropped, and leaves out a group
+  // made this season). This year: every group that is not dropped, so a
+  // farmer can be added to a group that has none yet. While searching or
+  // filtering, only groups with a match.
   const addable = view.year === "this" && current.key === "new";
   const shown = lgs.filter((lg) => {
     if (query || filtersOn) {
       return farmers.some((f) => f.lg_id === lg.id);
     }
-    // Only "Newly added" lists every group, so a farmer can be added to a
-    // group that has nobody new yet.
-    return addable || countFor(lg, current) > 0;
+    if (view.year === "last") {
+      return (lg.season_total || 0) > 0;
+    }
+    return !lg.dropped_on;
   });
   const allClosed = shown.length > 0 && shown.every((lg) => closed[lg.id]);
 
@@ -378,7 +382,15 @@ function SubmitData({
           const isClosed = !!closed[lg.id];
           const inLg = farmers.filter((f) => f.lg_id === lg.id);
           return (
-            <li key={lg.id} className="sd-lg">
+            <li
+              key={lg.id}
+              className={`sd-lg${lg.dropped_on ? " is-dropped" : lg.is_new ? " is-new" : ""}`}
+            >
+              {lg.dropped_on ? (
+                <div className="sd-lg-strip">{t("lgDroppedStrip")}</div>
+              ) : lg.is_new ? (
+                <div className="sd-lg-strip">{t("lgNewStrip")}</div>
+              ) : null}
               <div className="sd-lg-head">
                 <button
                   className="sd-lg-main"
@@ -396,14 +408,6 @@ function SubmitData({
                     </span>
                   </span>
                 </button>
-                {addable && (
-                  <button
-                    className="sd-add"
-                    onClick={() => onRegister(lg, null)}
-                  >
-                    ＋ {t("addFarmerShort")}
-                  </button>
-                )}
                 <span className={`sd-count ${current.tone}`}>
                   {query ? inLg.length : countFor(lg, current)}
                 </span>
@@ -428,7 +432,7 @@ function SubmitData({
                           <small className="sd-wait">{t("waitingBadge")}</small>
                         )}
                       </button>
-                      {f.season_status === "dropped" && (
+                      {f.season_status === "dropped" && !lg.dropped_on && (
                         <button
                           className="sd-bring"
                           title={t("bringBack")}
@@ -450,9 +454,21 @@ function SubmitData({
                     </li>
                   ))}
                   {!loading && inLg.length === 0 && (
-                    <li className="sd-empty">{t("noFarmers")}</li>
+                    <li className="sd-empty">
+                      {query || filtersOn
+                        ? t("noFarmers")
+                        : t("noneUnderStatus")}
+                    </li>
                   )}
                 </ul>
+              )}
+              {!isClosed && addable && !lg.dropped_on && (
+                <button
+                  className="sd-add-foot"
+                  onClick={() => onRegister(lg, null)}
+                >
+                  ＋ {t("addFarmerTo", { code: lg.lg_code })}
+                </button>
               )}
             </li>
           );

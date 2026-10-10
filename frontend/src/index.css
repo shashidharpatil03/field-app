@@ -2480,8 +2480,64 @@ button.lgc-total-btn {
   padding: 0;
 }
 
+/* One learning group is one white card. A new group has a green edge and a
+   strip across the top; a dropped group has a sand edge and strip. */
 .sd-lg {
-  margin-bottom: 6px;
+  margin: 0 0 10px;
+  padding: 0 14px 10px 8px;
+  overflow: hidden;
+  border: 1px solid #d5e6e1;
+  border-left: 6px solid transparent;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(10, 90, 82, 0.1);
+}
+
+.sd-lg.is-new {
+  border-left-color: #0a8f7c;
+}
+
+.sd-lg.is-dropped {
+  border-left-color: #c9a45a;
+}
+
+.sd-lg-strip {
+  margin: 0 -14px 4px -8px;
+  padding: 6px 14px 6px 14px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.is-new .sd-lg-strip {
+  background: #dff2ee;
+  color: #0a4f48;
+}
+
+.is-dropped .sd-lg-strip {
+  background: #f3e3c3;
+  color: #4a3000;
+}
+
+/* Farmer rows sit inside the group's card as plain rows */
+.sd-lg .sd-row {
+  margin: 0;
+  padding: 8px 0 8px 0;
+  border-top: 1px solid #e6f0ed;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.sd-add-foot {
+  width: 100%;
+  min-height: 48px;
+  margin: 8px 0 0;
+  border: 0;
+  border-radius: 12px;
+  background: #0a7a6c;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
 }
 
 .sd-lg-head {
@@ -2531,20 +2587,6 @@ button.lgc-total-btn {
   color: #5f8a82;
   font-size: 13px;
   font-weight: 600;
-}
-
-.sd-add {
-  flex: none;
-  margin: 0;
-  min-height: 40px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 999px;
-  background: #0a7a6c;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 700;
-  white-space: nowrap;
 }
 
 .sd-count {
@@ -3592,4 +3634,9 @@ textarea {
   border-radius: 50%;
   background: #e08a00;
   display: inline-block;
+}
+
+.sd-lg .sd-empty {
+  padding: 10px 0 4px;
+  border-top: 1px solid #e6f0ed;
 }
