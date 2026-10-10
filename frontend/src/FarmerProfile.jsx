@@ -17,7 +17,7 @@ const statusBadge = {
   dropped: "dropped_out",
 };
 
-function FarmerProfile({ farmerId, onBack, onDeleted }) {
+function FarmerProfile({ farmerId, onBack, onDeleted, locked = false }) {
   const [farmer, setFarmer] = useState(null);
   const [changes, setChanges] = useState([]);
   const [version] = useState(0);
@@ -77,9 +77,30 @@ function FarmerProfile({ farmerId, onBack, onDeleted }) {
         </p>
       )}
 
-      <div className="card">
-        <EditFarmer farmer={farmer} onCancel={onBack} onSaved={onBack} />
-      </div>
+      {locked ? (
+        <div className="card">
+          <p className="note">
+            This learning group was dropped. Its farmers cannot be changed or
+            continued. Bring the group back first.
+          </p>
+          <div className="profile-row">
+            <span className="label">Gender</span>
+            <span className="value">{farmer.gender}</span>
+          </div>
+          <div className="profile-row">
+            <span className="label">Mobile number</span>
+            <span className="value">{farmer.mobile || "(none)"}</span>
+          </div>
+          <div className="profile-row">
+            <span className="label">Growing cotton</span>
+            <span className="value">{farmer.growing_cotton ? "Yes" : "No"}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="card">
+          <EditFarmer farmer={farmer} onCancel={onBack} onSaved={onBack} />
+        </div>
+      )}
 
       <div className="card">
         <div className="profile-row">

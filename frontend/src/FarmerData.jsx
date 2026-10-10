@@ -38,13 +38,15 @@ function FarmerData({ onHome, user }) {
   // What Submit Data shows: which year, which status, which groups are folded.
   const [submitView, setSubmitView] = useState({
     year: "last",
-    status: "to_update",
-    closed: {},
+    status: "all",
+    open: {},
     filters: NO_FILTERS,
   });
   const [message, setMessage] = useState("");
   const [profileId, setProfileId] = useState(null);
   const [profileEdit, setProfileEdit] = useState(false);
+  // True when the farmer's learning group was dropped: shown, not editable.
+  const [profileLocked, setProfileLocked] = useState(false);
   const [registerLg, setRegisterLg] = useState(null);
   const [registerDraft, setRegisterDraft] = useState(null);
 
@@ -85,7 +87,7 @@ function FarmerData({ onHome, user }) {
     setMessage("");
     setSubmitView({
       ...button,
-      closed: {},
+      open: {},
       filters: { ...NO_FILTERS, ...rest },
     });
     setScreen("submit");
@@ -108,7 +110,8 @@ function FarmerData({ onHome, user }) {
     onDashboard: showDashboard,
   };
 
-  function openProfile(id, edit = false) {
+  function openProfile(id, edit = false, locked = false) {
+    setProfileLocked(locked);
     setProfileEdit(edit);
     setProfileId(id);
   }
@@ -130,6 +133,7 @@ function FarmerData({ onHome, user }) {
         <FarmerProfile
           farmerId={profileId}
           startEditing={profileEdit}
+          locked={profileLocked}
           onBack={() => {
             setProfileId(null);
             loadLgs();

@@ -1575,6 +1575,12 @@ def edit_farmer(
 
     connection = sqlite3.connect("field.db")
     require_farmer(connection, user, farmer_id, True)
+    # A farmer of a dropped learning group cannot be changed or continued.
+    group = connection.execute(
+        "SELECT lg_id FROM farmers WHERE id = ?", (farmer_id,)
+    ).fetchone()
+    if group is not None:
+        require_active_lg(connection, group[0], True)
     old = connection.execute(
         "SELECT name, gender, growing_cotton, mobile, total_landholding, "
         "area_under_cotton, water_regime, participation, first_name, "
