@@ -12,19 +12,11 @@ const REASONS = [
 // Shown only for farmers registered this season. Deleting removes the
 // farmer from every list and count. Farmers from earlier seasons are
 // marked as dropped out instead, so last year's records stay complete.
-function DeleteFarmer({ farmer, onDeleted }) {
-  const [open, setOpen] = useState(false);
+function DeleteFarmer({ farmer, onCancel, onDeleted }) {
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
-
-  function close() {
-    setOpen(false);
-    setReason("");
-    setNote("");
-    setErrors({});
-  }
 
   async function handleDelete() {
     if (reason === "") {
@@ -68,43 +60,31 @@ function DeleteFarmer({ farmer, onDeleted }) {
     setSaving(false);
   }
 
-  if (!open) {
-    return (
-      <div className="card danger-card">
-        <h3>Added by mistake?</h3>
-        <p>
-          This farmer was registered this season, so you can delete them. They
-          will disappear from all lists and counts.
-        </p>
-        <button className="danger" onClick={() => setOpen(true)}>
-          Delete this farmer
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <div className="warning-box danger-box">
-      <h3>Delete {farmer.farmer_code}?</h3>
-      <p>
+    <div className="fp-page">
+      <h2 className="step-title">Delete {farmer.farmer_code}?</h2>
+      <p className="fp-sub">
         {farmer.name} will be removed from all lists and counts. This cannot be
         undone from the app.
       </p>
 
-      <fieldset className="radio-group">
-        <legend>Reason</legend>
-        {REASONS.map((text) => (
-          <label key={text} className="radio">
-            <input
-              type="radio"
-              name="delete-reason"
-              checked={reason === text}
-              onChange={() => setReason(text)}
-            />
-            {text}
-          </label>
-        ))}
-      </fieldset>
+      {REASONS.map((text) => (
+        <label
+          key={text}
+          className={`reason-card ${reason === text ? "on" : ""}`}
+        >
+          <input
+            type="radio"
+            name="delete-reason"
+            checked={reason === text}
+            onChange={() => {
+              setReason(text);
+              setErrors({});
+            }}
+          />
+          {text}
+        </label>
+      ))}
       {errors.reason && <p className="error">{errors.reason}</p>}
 
       <div className="field">
@@ -121,12 +101,20 @@ function DeleteFarmer({ farmer, onDeleted }) {
 
       {errors.form && <p className="error">{errors.form}</p>}
 
-      <button className="danger solid" onClick={handleDelete} disabled={saving}>
-        {saving ? "Deleting..." : "Delete farmer"}
-      </button>
-      <button onClick={close} disabled={saving}>
-        Keep farmer
-      </button>
+      <div className="fp-bar">
+        <div className="fp-bar-inner">
+          <button
+            className="big-btn red"
+            onClick={handleDelete}
+            disabled={saving}
+          >
+            {saving ? "Deleting..." : "Delete farmer"}
+          </button>
+          <button className="big-btn gray" onClick={onCancel} disabled={saving}>
+            Keep farmer
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

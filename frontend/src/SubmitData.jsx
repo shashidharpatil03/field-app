@@ -237,7 +237,8 @@ function SubmitData({
   // made this season). This year: every group that is not dropped, so a
   // farmer can be added to a group that has none yet. While searching or
   // filtering, only groups with a match.
-  const addable = view.year === "this";
+  // Adding a farmer is only offered on "Newly added" and "Total this year".
+  const addable = view.year === "this" && current.key !== "continued";
   const shown = lgs.filter((lg) => {
     if (query || filtersOn) {
       return farmers.some((f) => f.lg_id === lg.id);
