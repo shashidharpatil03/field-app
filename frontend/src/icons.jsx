@@ -18,13 +18,20 @@ function Icon({ children }) {
   );
 }
 
+// The drawing is scaled up inside the box so it looks as big as the other
+// icons. The line width is lowered by the same amount, so lines stay equal.
 export function FarmerIcon() {
   return (
     <Icon>
-      <circle cx="18" cy="16" r="6" />
-      <path d="M6 41c0-7 5-12 12-12s12 5 12 12" />
-      <circle cx="35" cy="19" r="5" />
-      <path d="M31 30c1.2-.7 2.5-1 4-1 5.5 0 9 4 9 10" />
+      <g
+        transform="translate(24 24) scale(1.1) translate(-25 -25.5)"
+        strokeWidth="2.4"
+      >
+        <circle cx="18" cy="16" r="6" />
+        <path d="M6 41c0-7 5-12 12-12s12 5 12 12" />
+        <circle cx="35" cy="19" r="5" />
+        <path d="M31 30c1.2-.7 2.5-1 4-1 5.5 0 9 4 9 10" />
+      </g>
     </Icon>
   );
 }
@@ -32,10 +39,15 @@ export function FarmerIcon() {
 export function PracticeIcon() {
   return (
     <Icon>
-      <path d="M24 42V24" />
-      <path d="M24 30c-8 0-13-5-13-13 8 0 13 5 13 13z" />
-      <path d="M24 25c0-8 5-13 13-13 0 8-5 13-13 13z" />
-      <path d="M14 42h20" />
+      <g
+        transform="translate(24 24) scale(1.25) translate(-24 -27)"
+        strokeWidth="2.1"
+      >
+        <path d="M24 42V24" />
+        <path d="M24 30c-8 0-13-5-13-13 8 0 13 5 13 13z" />
+        <path d="M24 25c0-8 5-13 13-13 0 8-5 13-13 13z" />
+        <path d="M14 42h20" />
+      </g>
     </Icon>
   );
 }

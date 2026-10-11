@@ -1,8 +1,10 @@
 # Co-farm Field Tools
 
-A mobile-friendly app for collecting and maintaining **Farmer data** in the field. It works offline
+A mobile-friendly app for collecting and maintaining **Farmer data** in the field. It works offline and sends its data by itself when there is signal.
 
 All data in this repository is **made up**. There are no real farmers, no passwords, no keys.
+
+How AI tools were used is described in [AI_USAGE.md](AI_USAGE.md).
 
 ---
 
@@ -17,8 +19,9 @@ All data in this repository is **made up**. There are no real farmers, no passwo
 | Screen | What it does |
 | --- | --- |
 | **Farmer Data → Dashboard** | Farmer counts for last season and this season (new, continued, still to update, dropped out), with progress and filters by village, group and facilitator. |
-| **Farmer Data → Submit Data** | Learning groups and their farmers. Update last season's farmers, register new ones, drop or bring back a farmer, delete a farmer registered by mistake. |
-| **Register / Edit farmer** | Step-by-step form with a **Review** step before saving. Checks happen as the person types and again on the server. |
+| **Farmer Data → Submit Data** | Opens on **Total last year**: every farmer from last season under their learning group, each tagged *Still to update*, *Continued* or *Dropped out*. One bar of four numbers filters the list; the **2026-27** tab shows *Continued*, *Newly added* and **Total this year**. Groups start folded, farmers sorted by farmer code, with a search box. *Add farmer* appears only under *Newly added* and *Total this year*. |
+| **Farmer details** | **One screen for every farmer**, whatever their status: the details first, then big buttons at the bottom that depend on the status. *Still to update*: **Review and confirm details** or **Dropped out**. *Continued*: **Change details** or **Dropped out**. *Newly added*: **Change details** or **Delete farmer**. *Dropped out*: **Bring back and review details**. Farmers of a dropped group are shown read-only. |
+| **Register / Edit farmer** | A few questions per screen (name, then gender and mobile, then land and cotton), then a **final check** where any answer can be changed before saving. A *Still to update* farmer must go through every answer; there is no "all correct" shortcut. Checks happen on each screen and again on the server. |
 | **Incomplete** | Saved drafts. Start a registration, stop, come back later. |
 | **Sent** | Everything already sent, with the time it reached the server. |
 | **Ready to send** | Changes made without signal, waiting to go. Shows anything the server refused, with the reason. |
@@ -49,6 +52,8 @@ Everything above for all facilitators in the PU, plus **PU Management** (online 
 - Season status is worked out from the data: *Newly added*, *Continued*, *Still to update*, *Dropped out*, *Deleted*. The season starts on 1 May.
 - If the manager and a facilitator both change the same farmer, **the latest change wins**.
 - Once a facilitator is marked as left, they can no longer use the app.
+- Farmers of a **dropped learning group** cannot be changed or continued. The screen shows them read-only and the server refuses the change too.
+- A *Still to update* farmer is only counted as updated after the facilitator has gone through every answer and saved. A dropped farmer brought back goes through the same review.
 - Every change is written to an **activity log** (who, what, when). Deleted farmers are archived, not erased.
 
 ---
@@ -57,7 +62,7 @@ Everything above for all facilitators in the PU, plus **PU Management** (online 
 
 | Part | Choice |
 | --- | --- |
-| Frontend | React 19 + Vite, plain JavaScript, |
+| Frontend | React 19 + Vite, plain JavaScript |
 | Backend | Python, FastAPI, the standard `sqlite3` module (no ORM) |
 | Database | SQLite (`backend/field.db`, created locally, not committed) |
 | Offline | Service worker (app shell), IndexedDB (data copy on the phone), localStorage (waiting list) |
@@ -118,21 +123,6 @@ You do not need these for a fresh install. The `backend/add_*.py` files are one-
 
 ---
 
-## How offline works
-
-The idea: **work offline where the work happens in the field; check online where a change affects other people.**
-
-1. **App shell.** A service worker saves the app's own files, so it opens with no signal.
-2. **Data copy.** After sign-in the app downloads a copy of the user's data from `GET /sync/snapshot` and keeps it in IndexedDB, one copy per user. Lists, the dashboard and farmer profiles are answered from this copy (`localQuery.js`, `localData.js`).
-3. **Writing.** A change is sent to the server first so validation is immediate. If the network fails, it goes onto a **waiting list** instead (`pending_<userId>` in localStorage).
-4. **What the user sees.** Waiting changes are laid on top of the saved copy (`overlay.js`), so the screens already show them. Local-only records have negative IDs until the server gives real ones.
-5. **Sending.** When the app thinks it is online it first pings the server (a phone can be "online" with no real connection), then sends the waiting changes one by one. The server checks each again. A refused change stays on the Sync screen with its reason, and does not block the others.
-6. **Refresh.** After sending, a fresh copy is fetched. The view is frozen during this so numbers do not jump.
-7. **Admin actions** (PU Management) need the server on purpose: they affect other people's lists, so they say "needs an internet connection" instead of queuing.
-
-Season-status rules are repeated in the browser (`localQuery.js`) so counts match the server. This duplication is the main cost of the design; see *What I would do next*.
-
----
 
 ## Project layout
 
@@ -155,6 +145,10 @@ frontend/
     offline.js       waiting list, sending, sync state
     i18n.jsx         English and Marathi text
     farmerRules.js   form checks (the server checks again)
+    SubmitData.jsx   farmer list: year tabs, status bar, folded groups
+    FarmerProfile.jsx the one details screen and its bottom buttons
+    EditFarmer.jsx   review / change flow (three screens and a final check)
+    DropFarmer.jsx, DeleteFarmer.jsx, RegisterFarmer.jsx  drop, delete, add
 ```
 
 ---
@@ -163,20 +157,18 @@ frontend/
 
 - **No real sign-in.** The sign-in screen is a picker of made-up users and the server trusts an `X-User-Id` header. Fine for a demo, not for production. A real version needs proper authentication (for example one-time codes by SMS) and per-user tokens.
 - **Personal data on the phone.** The offline copy holds farmer names and mobile numbers. A lost phone is a risk, larger for a PU manager (all groups). A real version needs a device lock requirement, encryption and a way to wipe the copy remotely.
-- **Lost replies.** Each registration carries a number made on the phone. If a reply is lost and the phone sends the registration again, the server recognises the number and does not register the farmer twice. Forms kept on the phone *before* this was added have no number and behave as before. Admin actions such as adding a group are not queued, so they are not covered; a double tap there could still add two.
 - **Moved groups.** If the manager moves a group away from a facilitator while that facilitator is offline, their waiting edits for that group are refused at sync and shown with a reason.
 - **First sign-in on a phone needs signal**, to download the first data copy.
 - **Whole-copy sync.** The phone downloads everything it is allowed to see each time. Fine for hundreds of farmers, not for tens of thousands. A real version would send only what changed.
-- **Sent** shows only what has reached the server.
 - **Admin work is online only** by design.
 - **Not covered:** other modules (Farm, Sowing, Practice Adoption, Capacity Strengthening, RIR), which appear as "coming soon" tiles; photos and GPS; data export for analysts beyond the SQLite tables themselves.
 - **No automated tests yet.** Rules were checked by hand and with throwaway scripts.
 
 ## What I would do next
-
-1. Automated tests for the rules (land, names, season status) and for the sync rules.
-2. The same unique-number idea for edits and for admin actions (today only registrations carry one).
+1. A field test with real users on low-end phones. It will also be an opportunity to review data collection workflows
+2. PU Manager data verification workflow needs to be added.
 3. One shared rules definition for server and browser, instead of two copies.
-4. Real authentication, device security, and https deployment.
-5. Delta sync, then more modules (Farm, Practice Adoption) on the same offline layer.
-6. Review of the Marathi text with facilitators, and a field test with real users on low-end phones.
+4. Real authentication and device security
+5. More modules (RIR, Practice Adoption) on the same offline layer.
+
+
