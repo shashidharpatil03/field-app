@@ -31,6 +31,12 @@ function DeleteFarmer({ farmer, onCancel, onDeleted }) {
       onDeleted(`${farmer.name} was deleted.`);
       return;
     }
+    // Save on the phone first: it is instant, and it goes to the server by
+    // itself as soon as there is signal.
+    if (queueDelete(farmer, { reason: reason, note: note })) {
+      onDeleted(`${farmer.farmer_code} was deleted.`);
+      return;
+    }
     try {
       const response = await apiFetch(
         `http://localhost:8000/farmers/${farmer.id}/delete`,

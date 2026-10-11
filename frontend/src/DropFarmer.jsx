@@ -38,6 +38,12 @@ function DropFarmer({ farmer, onCancel, onSaved }) {
       participation: "dropped_out",
       drop_reason: reason,
     };
+    // Save on the phone first: it is instant, and it goes to the server by
+    // itself as soon as there is signal.
+    if (queueEdit(farmer, body)) {
+      onSaved();
+      return;
+    }
     try {
       const response = await apiFetch(
         `http://localhost:8000/farmers/${farmer.id}`,

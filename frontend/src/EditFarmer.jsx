@@ -151,6 +151,14 @@ function EditFarmer({ farmer, mode, onCancel, onSaved }) {
       return;
     }
 
+    // Save on the phone first: it is instant, and it goes to the server by
+    // itself as soon as there is signal. If the phone has no room, the
+    // server is asked directly below.
+    if (queueEdit(farmer, body)) {
+      onSaved();
+      return;
+    }
+
     try {
       const response = await apiFetch(
         `http://localhost:8000/farmers/${farmer.id}`,

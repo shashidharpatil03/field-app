@@ -4239,3 +4239,17 @@ button.fp-change {
   height: 22px;
   accent-color: #b3261e;
 }
+
+/* Group card: no empty space under the number strip when folded */
+.sd-lg {
+  padding-bottom: 0;
+}
+.sd-lg .rm-strip:last-child {
+  border-bottom: 0;
+}
+.sd-lg .rm-farmers:last-child {
+  padding-bottom: 10px;
+}
+.sd-lg .sd-add-foot {
+  margin-bottom: 10px;
+}

@@ -118,7 +118,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
       return false;
     }
     onDone(
-      "Saved on this phone. It will be sent by itself when there is signal.",
+      "Saved on this phone. It is sent by itself as soon as there is signal.",
     );
     return true;
   }
@@ -161,7 +161,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
       return;
     }
     setBusy(true);
-    if (waitingKey !== null && keepOnPhone(draftId, false)) {
+    if (keepOnPhone(draftId, false)) {
       return;
     }
     try {
@@ -229,7 +229,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
   async function handleSubmit() {
     setBusy(true);
     let savedId = draftId;
-    if (waitingKey !== null && keepOnPhone(draftId, true)) {
+    if (keepOnPhone(draftId, true)) {
       return;
     }
     try {
