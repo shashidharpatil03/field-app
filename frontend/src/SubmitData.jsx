@@ -41,15 +41,17 @@ const BUTTONS = {
       count: "season_dropped",
       tone: "s",
     },
+    // Every farmer of last year: the three statuses together. On the right,
+    // and picked when Farmer Data opens.
+    {
+      key: "all",
+      seasons: ["to_update", "continued", "dropped"],
+      label: "allLastYear",
+      count: "season_total",
+      tone: "a",
+    },
   ],
   this: [
-    {
-      key: "new",
-      season: "new",
-      label: "statusNew",
-      count: "new_count",
-      tone: "g",
-    },
     {
       key: "continued",
       season: "continued",
@@ -58,11 +60,18 @@ const BUTTONS = {
       tone: "b",
     },
     {
+      key: "new",
+      season: "new",
+      label: "statusNew",
+      count: "new_count",
+      tone: "g",
+    },
+    {
       key: "all",
       season: "this_year",
       label: "allThisYear",
       count: "season_farmers",
-      tone: "v",
+      tone: "a",
     },
   ],
 };
@@ -84,7 +93,11 @@ function SubmitData({
 }) {
   const t = useT();
   const buttons = BUTTONS[view.year];
-  const current = buttons.find((b) => b.key === view.status) || buttons[0];
+  // "All last year" and "All this year" are buttons too, so one is always
+  // picked. A button can stand for more than one season filter.
+  const current = buttons.find((b) => b.key === view.status) || buttons[buttons.length - 1];
+  const seasonsOf = (b) => b.seasons || [b.season];
+  const seasons = seasonsOf(current);
   const [farmers, setFarmers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -119,12 +132,12 @@ function SubmitData({
     let stale = false;
     setLoading(true);
     setLoadError(false);
-    async function loadAll() {
+    async function loadAll(season) {
       const all = [];
       let total = 0;
       do {
         const params = new URLSearchParams();
-        params.set("season", current.season);
+        params.set("season", season);
         params.set("status", "all");
         narrowParams(params);
         params.set("limit", String(PAGE_SIZE));
@@ -144,8 +157,12 @@ function SubmitData({
       } while (all.length < total);
       return all;
     }
-    loadAll()
-      .then((all) => {
+    Promise.all(seasons.map(loadAll))
+      .then((lists) => {
+        // Always in farmer code order, whichever statuses were asked for.
+        const all = lists.flat().sort((a, b) =>
+          a.farmer_code.localeCompare(b.farmer_code),
+        );
         if (!stale) {
           setFarmers(all);
           setLoading(false);
@@ -161,7 +178,7 @@ function SubmitData({
       stale = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current.season, query, version, JSON.stringify(extra)]);
+  }, [seasons.join(","), query, version, JSON.stringify(extra)]);
 
   // When the list is narrowed, the totals on the buttons are asked from the
   // server too, so they match what the list would show.
@@ -172,16 +189,20 @@ function SubmitData({
     let stale = false;
     Promise.all(
       buttons.map(async (b) => {
-        const params = new URLSearchParams();
-        params.set("season", b.season);
-        params.set("status", "all");
-        narrowParams(params);
-        params.set("limit", "1");
-        const response = await apiFetch(
-          `http://localhost:8000/farmers?${params.toString()}`,
-        );
-        const data = await response.json();
-        return [b.key, data.total];
+        let sum = 0;
+        for (const season of seasonsOf(b)) {
+          const params = new URLSearchParams();
+          params.set("season", season);
+          params.set("status", "all");
+          narrowParams(params);
+          params.set("limit", "1");
+          const response = await apiFetch(
+            `http://localhost:8000/farmers?${params.toString()}`,
+          );
+          const data = await response.json();
+          sum += data.total;
+        }
+        return [b.key, sum];
       }),
     )
       .then((pairs) => {
@@ -196,7 +217,8 @@ function SubmitData({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view.year, query, version, JSON.stringify(extra)]);
 
-  const closed = view.closed;
+  // Groups start folded; the ones the person opens are kept here.
+  const open = view.open || {};
   const hasNumbers =
     lgs.length > 0 && typeof lgs[0].season_farmers === "number";
 
@@ -209,33 +231,41 @@ function SubmitData({
     return lgs.reduce((sum, lg) => sum + countFor(lg, button), 0);
   }
 
-  // Last year's view lists only groups that have somebody under the chosen
-  // button. This year's lists every group, so a farmer can be added to a
-  // group that has none yet. While searching, only groups with a match.
-  const addable = view.year === "this" && current.key === "new";
+  // Each year lists the same groups under all three of its buttons, with 0
+  // where nobody fits that button. Last year: the groups that had farmers
+  // last year (this includes a group that was dropped, and leaves out a group
+  // made this season). This year: every group that is not dropped, so a
+  // farmer can be added to a group that has none yet. While searching or
+  // filtering, only groups with a match.
+  // Adding a farmer is only offered on "Newly added" and "Total this year".
+  const addable = view.year === "this" && current.key !== "continued";
   const shown = lgs.filter((lg) => {
     if (query || filtersOn) {
       return farmers.some((f) => f.lg_id === lg.id);
     }
-    // Only "Newly added" lists every group, so a farmer can be added to a
-    // group that has nobody new yet.
-    return addable || countFor(lg, current) > 0;
+    if (view.year === "last") {
+      return (lg.season_total || 0) > 0;
+    }
+    return !lg.dropped_on;
   });
-  const allClosed = shown.length > 0 && shown.every((lg) => closed[lg.id]);
+  // While searching or filtering, the groups with a match are shown open.
+  const forceOpen = !!query || filtersOn;
+  const isOpen = (lg) => forceOpen || !!open[lg.id];
+  const allOpen = shown.length > 0 && shown.every(isOpen);
 
   function toggleLg(id) {
-    setView({ ...view, closed: { ...closed, [id]: !closed[id] } });
+    setView({ ...view, open: { ...open, [id]: !open[id] } });
   }
 
   function toggleAll() {
-    if (allClosed) {
-      setView({ ...view, closed: {} });
+    if (allOpen) {
+      setView({ ...view, open: {} });
     } else {
       const next = {};
       for (const lg of shown) {
         next[lg.id] = true;
       }
-      setView({ ...view, closed: next });
+      setView({ ...view, open: next });
     }
   }
 
@@ -273,7 +303,7 @@ function SubmitData({
   }
 
   function chooseYear(year) {
-    setView({ ...view, year: year, status: BUTTONS[year][0].key });
+    setView({ ...view, year: year, status: "all", open: {} });
   }
 
   return (
@@ -296,13 +326,18 @@ function SubmitData({
           </button>
         </div>
 
-        <div className="fstats">
+        <div className="seg">
           {buttons.map((b) => (
             <button
               key={b.key}
-              className={`${b.tone}${current.key === b.key ? " on" : ""}`}
+              className={`seg-b ${b.tone}${current.key === b.key ? " on" : ""}`}
               aria-pressed={current.key === b.key}
-              onClick={() => setView({ ...view, status: b.key })}
+              onClick={() =>
+                setView({
+                  ...view,
+                  status: current.key === b.key ? "all" : b.key,
+                })
+              }
             >
               <b>
                 {filtersOn
@@ -311,7 +346,7 @@ function SubmitData({
                     ? totalFor(b)
                     : "–"}
               </b>
-              {t(b.label)}
+              <span>{t(b.label)}</span>
             </button>
           ))}
         </div>
@@ -325,14 +360,31 @@ function SubmitData({
         </p>
       )}
 
-      <input
-        className="submit-search"
-        type="text"
-        aria-label={t("searchLabel")}
-        value={typed}
-        placeholder={t("searchPlaceholder")}
-        onChange={(e) => setTyped(e.target.value)}
-      />
+      <div className="submit-search-wrap">
+        <svg
+          className="submit-search-icon"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path d="M20 20l-4-4" />
+        </svg>
+        <input
+          className="submit-search"
+          type="text"
+          aria-label={t("searchLabel")}
+          value={typed}
+          placeholder={t("searchPlaceholder")}
+          onChange={(e) => setTyped(e.target.value)}
+        />
+      </div>
 
       {chips.length > 0 && (
         <div className="chips">
@@ -353,7 +405,7 @@ function SubmitData({
         <strong>{t("lgsHeading")}</strong>
         {shown.length > 0 && (
           <button className="lg-toggle-all" onClick={toggleAll}>
-            {allClosed ? `▼ ${t("openAll")}` : `▲ ${t("collapseAll")}`}
+            {allOpen ? `▲ ${t("collapseAll")}` : `▼ ${t("openAll")}`}
           </button>
         )}
       </div>
@@ -375,60 +427,89 @@ function SubmitData({
 
       <ul className="submit-lgs">
         {shown.map((lg) => {
-          const isClosed = !!closed[lg.id];
+          const isOpened = isOpen(lg);
           const inLg = farmers.filter((f) => f.lg_id === lg.id);
+          // The numbers under the group code, in the same order and colours
+          // as the buttons on top. When one status is picked, the other
+          // columns fade; with "All" picked nothing fades.
+          const cols = buttons;
           return (
-            <li key={lg.id} className="sd-lg">
-              <div className="sd-lg-head">
-                <button
-                  className="sd-lg-main"
-                  aria-expanded={!isClosed}
-                  onClick={() => toggleLg(lg.id)}
-                >
-                  <span className="sd-chevron" aria-hidden="true">
-                    {isClosed ? "▶" : "▼"}
-                  </span>
-                  <span className="sd-lg-text">
-                    <span className="sd-lg-code">{lg.lg_code}</span>
-                    <span className="sd-lg-sub">
-                      {lg.village}
-                      {isManager && ` | ${lg.ff_name ?? t("nobodyYet")}`}
-                    </span>
-                  </span>
-                </button>
-                {addable && (
-                  <button
-                    className="sd-add"
-                    onClick={() => onRegister(lg, null)}
-                  >
-                    ＋ {t("addFarmerShort")}
-                  </button>
-                )}
-                <span className={`sd-count ${current.tone}`}>
-                  {query ? inLg.length : countFor(lg, current)}
+            <li
+              key={lg.id}
+              className={`sd-lg${lg.dropped_on ? " is-dropped" : lg.is_new ? " is-new" : ""}`}
+            >
+              {lg.dropped_on ? (
+                <div className="sd-lg-strip">{t("lgDroppedStrip")}</div>
+              ) : lg.is_new ? (
+                <div className="sd-lg-strip">{t("lgNewStrip")}</div>
+              ) : null}
+              <button
+                className="rm-head"
+                aria-expanded={isOpened}
+                onClick={() => toggleLg(lg.id)}
+              >
+                <span className="rm-tile" aria-hidden="true">
+                  {String(parseInt(lg.lg_code.split("-").pop(), 10) || "")}
                 </span>
+                <span className="rm-head-text">
+                  <span className="rm-head-name">{lg.lg_code}</span>
+                  <span className="rm-head-code">
+                    {lg.village}
+                    {isManager && ` | ${lg.ff_name ?? t("nobodyYet")}`}
+                  </span>
+                </span>
+                <span className="rm-arrow" aria-hidden="true">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d={isOpened ? "M6 15l6-6 6 6" : "M6 9l6 6 6-6"} />
+                  </svg>
+                </span>
+              </button>
+              <div className="rm-strip">
+                {cols.map((c) => (
+                  <div
+                    key={c.key}
+                    className={`rm-col ${c.tone}${current.key !== "all" && current.key !== c.key ? " dim" : ""}`}
+                  >
+                    <b>{lg[c.count] || 0}</b>
+                    <span>{t(c.label)}</span>
+                  </div>
+                ))}
               </div>
 
-              {!isClosed && (
-                <ul className="sd-farmers">
+              {isOpened && (
+                <ul className="rm-farmers">
                   {inLg.map((f) => (
-                    <li className={`sd-row st-${f.season_status}`} key={f.id}>
+                    <li className="rm-row" key={f.id}>
                       <button
-                        className="sd-code"
-                        onClick={() => onOpenFarmer(f.id)}
+                        className="rm-main"
+                        onClick={() => onOpenFarmer(f.id, false, !!lg.dropped_on)}
                       >
-                        {f.farmer_code}
-                      </button>
-                      <button
-                        className="sd-name"
-                        onClick={() => onOpenFarmer(f.id)}
-                      >
-                        {f.name}
+                        <span className="rm-name">{f.name}</span>
+                        <span className="rm-code">{f.farmer_code}</span>
+                        <span className={`rm-tag ${f.season_status}`}>
+                          {t(
+                            {
+                              new: "statusNew",
+                              continued: "statusContinued",
+                              to_update: "statusToUpdate",
+                              dropped: "droppedOut",
+                            }[f.season_status] || "statusContinued",
+                          )}
+                        </span>
                         {f.pending && (
                           <small className="sd-wait">{t("waitingBadge")}</small>
                         )}
                       </button>
-                      {f.season_status === "dropped" && (
+                      {f.season_status === "dropped" && !lg.dropped_on && (
                         <button
                           className="sd-bring"
                           title={t("bringBack")}
@@ -450,9 +531,21 @@ function SubmitData({
                     </li>
                   ))}
                   {!loading && inLg.length === 0 && (
-                    <li className="sd-empty">{t("noFarmers")}</li>
+                    <li className="sd-empty">
+                      {query || filtersOn
+                        ? t("noFarmers")
+                        : t("noneUnderStatus")}
+                    </li>
                   )}
                 </ul>
+              )}
+              {isOpened && addable && !lg.dropped_on && (
+                <button
+                  className="sd-add-foot"
+                  onClick={() => onRegister(lg, null)}
+                >
+                  ＋ {t("addFarmerTo", { code: lg.lg_code })}
+                </button>
               )}
             </li>
           );

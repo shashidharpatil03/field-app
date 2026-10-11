@@ -9,11 +9,24 @@ import {
   acresText,
   withSummary,
 } from "./farmerRules.js";
-import Required from "./Required.jsx";
 import LandFields from "./LandFields.jsx";
 import NameFields from "./NameFields.jsx";
 import { apiFetch } from "./api.js";
 import { addPending, isNetworkError, newClientId } from "./offline.js";
+
+// Which answers belong to which screen (steps 0, 1 and 2).
+const STEP_KEYS = [
+  ["first_name", "middle_name", "last_name"],
+  ["gender", "mobile"],
+  ["growing_cotton", "total_landholding", "area_under_cotton", "water_regime"],
+];
+const STEP_TITLES = ["Farmer's name", "About the farmer", "Land and cotton"];
+
+// The first screen that has a wrong answer (3 if none is on a question screen).
+function screenOf(found) {
+  const wrong = STEP_KEYS.findIndex((keys) => keys.some((key) => found[key]));
+  return wrong === -1 ? 3 : wrong;
+}
 
 function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
   const [first, setFirst] = useState(draft ? draft.first_name : "");
@@ -59,7 +72,10 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
   const [clientId] = useState(
     () => (draft && draft.client_id) || newClientId(),
   );
-  const [step, setStep] = useState("form");
+  // 0, 1, 2 are the question screens; 3 is the final check.
+  const [step, setStep] = useState(0);
+  // True when a screen was opened from the final check with "Change".
+  const [fromReview, setFromReview] = useState(false);
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
 
@@ -102,7 +118,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
       return false;
     }
     onDone(
-      "Saved on this phone. It will be sent by itself when there is signal.",
+      "Saved on this phone. It is sent by itself as soon as there is signal.",
     );
     return true;
   }
@@ -145,7 +161,7 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
       return;
     }
     setBusy(true);
-    if (waitingKey !== null && keepOnPhone(draftId, false)) {
+    if (keepOnPhone(draftId, false)) {
       return;
     }
     try {
@@ -169,36 +185,58 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
     setBusy(false);
   }
 
-  function handleReview(event) {
-    event.preventDefault();
+  // Checks only the answers on this screen, then moves on.
+  function next() {
     const found = checkForm(
       { first, middle, last },
       gender,
       growingCotton,
       mobile,
-      {
-        total: total,
-        cotton: cotton,
-        water: water,
-      },
+      { total: total, cotton: cotton, water: water },
     );
-    setErrors(withSummary(found));
-    if (Object.keys(found).length === 0) {
-      setStep("review");
+    const mine = {};
+    for (const key of STEP_KEYS[step]) {
+      if (found[key]) {
+        mine[key] = found[key];
+      }
     }
+    setErrors(withSummary(mine));
+    if (Object.keys(mine).length > 0) {
+      return;
+    }
+    setStep(fromReview ? 3 : step + 1);
+    setFromReview(false);
+  }
+
+  function back() {
+    setErrors({});
+    if (step === 0) {
+      onBack();
+    } else if (fromReview) {
+      setStep(3);
+      setFromReview(false);
+    } else {
+      setStep(step - 1);
+    }
+  }
+
+  function change(index) {
+    setErrors({});
+    setFromReview(true);
+    setStep(index);
   }
 
   async function handleSubmit() {
     setBusy(true);
     let savedId = draftId;
-    if (waitingKey !== null && keepOnPhone(draftId, true)) {
+    if (keepOnPhone(draftId, true)) {
       return;
     }
     try {
       const saved = await saveDraft();
       if (saved.errors) {
         setErrors(saved.errors);
-        setStep("form");
+        setStep(screenOf(saved.errors));
         setBusy(false);
         return;
       }
@@ -214,8 +252,9 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
         onDone(`${name} was registered as ${data.farmer_code}.`);
         return;
       }
-      setErrors(typeof data.detail === "object" ? data.detail : {});
-      setStep("form");
+      const found = typeof data.detail === "object" ? data.detail : {};
+      setErrors(found);
+      setStep(screenOf(found));
     } catch (error) {
       if (isNetworkError(error) && keepOnPhone(savedId, true)) {
         return;
@@ -225,88 +264,153 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
           ? "Could not save. Please try again."
           : "Something went wrong. Please try again.",
       });
-      setStep("form");
+      setStep(3);
     }
     setBusy(false);
   }
 
-  if (step === "review") {
-    return (
-      <div>
-        <h1>Review</h1>
-        <p>Check the answers for {lgCode}, then submit.</p>
+  const dots = (
+    <div className="fp-dots">
+      <div className="fp-dots-row">
+        {[0, 1, 2].map((i) => (
+          <span key={i} className={`fp-dot ${i === step ? "on" : ""}`} />
+        ))}
+      </div>
+      <span className="fp-dots-text">Step {step + 1} of 3</span>
+    </div>
+  );
 
-        <div className="card">
-          <div className="profile-row">
-            <span className="label">Full name</span>
-            <span className="value">{name}</span>
+  const head = (text) => (
+    <div>
+      <h2 className="step-title">{text}</h2>
+      <p className="fp-sub">Learning group {lgCode}</p>
+    </div>
+  );
+
+  const messages = (
+    <div>
+      {errors.confirm_large && <p className="error">{errors.confirm_large}</p>}
+      {errors.form && <p className="error">{errors.form}</p>}
+      {errors.summary && <p className="error">{errors.summary}</p>}
+    </div>
+  );
+
+  // The big buttons on the question screens.
+  const stepBar = (
+    <div className="fp-bar">
+      <div className="fp-bar-inner">
+        <div className="fp-bar-row">
+          <button className="big-btn gray" onClick={back} disabled={busy}>
+            Back
+          </button>
+          <button className="big-btn green" onClick={next} disabled={busy}>
+            Next
+          </button>
+        </div>
+        <button
+          className="big-btn amber"
+          onClick={handleSaveDraft}
+          disabled={busy}
+        >
+          Save draft
+        </button>
+      </div>
+    </div>
+  );
+
+  if (step === 3) {
+    const groups = [
+      [0, [["Name", name]]],
+      [
+        1,
+        [
+          ["Gender", gender],
+          ["Mobile number", mobile.trim() || "Not given"],
+        ],
+      ],
+      [
+        2,
+        [
+          ["Growing cotton", growingCotton === "yes" ? "Yes" : "No"],
+          ["Total land", `${parseAcres(total)} acres`],
+          ["Cotton land", `${parseAcres(cotton)} acres`],
+          ["Water regime", water],
+        ],
+      ],
+    ];
+    return (
+      <div className="fp-page">
+        {head("Check your answers")}
+        {groups.map(([index, rows]) => (
+          <div className="card" key={index}>
+            <div className="fp-card-head">
+              <span>{STEP_TITLES[index]}</span>
+              <button
+                className="fp-change"
+                onClick={() => change(index)}
+                disabled={busy}
+              >
+                ✎ Change
+              </button>
+            </div>
+            {rows.map(([label, value]) => (
+              <div className="profile-row" key={label}>
+                <span className="label">{label}</span>
+                <span className="value">{value}</span>
+              </div>
+            ))}
           </div>
-          <div className="profile-row">
-            <span className="label">Gender</span>
-            <span className="value">{gender}</span>
-          </div>
-          <div className="profile-row">
-            <span className="label">Growing cotton</span>
-            <span className="value">
-              {growingCotton === "yes" ? "Yes" : "No"}
-            </span>
-          </div>
-          <div className="profile-row">
-            <span className="label">Mobile number</span>
-            <span className="value">{mobile.trim() || "Not given"}</span>
-          </div>
-          <div className="profile-row">
-            <span className="label">Total landholding</span>
-            <span className="value">{parseAcres(total)} acres</span>
-          </div>
-          <div className="profile-row">
-            <span className="label">Area under cotton</span>
-            <span className="value">{parseAcres(cotton)} acres</span>
-          </div>
-          <div className="profile-row">
-            <span className="label">Water regime</span>
-            <span className="value">{water}</span>
+        ))}
+        {messages}
+
+        <div className="fp-bar">
+          <div className="fp-bar-inner">
+            {isLarge && !confirmed ? (
+              <div className="fp-bar-inner">
+                <div className="warning-box" role="alert">
+                  <strong>This is unusual. Is it correct?</strong>
+                  <p>
+                    Most farmers have less than 50 acres, and you entered{" "}
+                    {parseAcres(total)} acres of land and {parseAcres(cotton)}{" "}
+                    acres of cotton.
+                  </p>
+                </div>
+                <button
+                  className="big-btn green"
+                  onClick={() => setConfirmedFor(landKey)}
+                >
+                  Yes, it is correct
+                </button>
+                <button className="big-btn gray" onClick={() => change(2)}>
+                  No, let me change it
+                </button>
+              </div>
+            ) : (
+              <div className="fp-bar-inner">
+                <button
+                  className="big-btn green"
+                  onClick={handleSubmit}
+                  disabled={busy}
+                >
+                  {busy ? "Saving..." : "Save: add farmer"}
+                </button>
+                <button className="big-btn gray" onClick={back} disabled={busy}>
+                  Back
+                </button>
+              </div>
+            )}
           </div>
         </div>
-
-        {isLarge && !confirmed && (
-          <div className="warning-box" role="alert">
-            <strong>This is unusual. Is it correct?</strong>
-            <p>
-              Most farmers have less than 50 acres, and you entered{" "}
-              {parseAcres(total)} acres of land and {parseAcres(cotton)} acres
-              of cotton.
-            </p>
-            <button onClick={() => setConfirmedFor(landKey)}>
-              Yes, it is correct
-            </button>
-            <button onClick={() => setStep("form")}>No, edit answers</button>
-          </div>
-        )}
-
-        {errors.form && <p className="error">{errors.form}</p>}
-
-        {(!isLarge || confirmed) && (
-          <div>
-            <button onClick={handleSubmit} disabled={busy}>
-              {busy ? "Submitting..." : "Submit"}
-            </button>
-            <button onClick={() => setStep("form")} disabled={busy}>
-              Edit answers
-            </button>
-          </div>
-        )}
       </div>
     );
   }
 
-  return (
-    <div>
-      <button onClick={onBack}>← Back</button>
-      <h1>Register farmer</h1>
-      <p>Learning group {lgCode}</p>
-
-      <form onSubmit={handleReview} noValidate>
+  if (step === 0) {
+    return (
+      <div className="fp-page">
+        {head("Add new farmer")}
+        {dots}
+        <h3 className="step-title">{STEP_TITLES[0]}</h3>
         <NameFields
           idPrefix="reg"
           first={first}
@@ -317,49 +421,34 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
             ({ first: setFirst, middle: setMiddle, last: setLast })[key](value)
           }
         />
+        {messages}
+        {stepBar}
+      </div>
+    );
+  }
 
+  if (step === 1) {
+    return (
+      <div className="fp-page">
+        {head("Add new farmer")}
+        {dots}
+        <h3 className="step-title">{STEP_TITLES[1]}</h3>
         <div className="field">
-          <label htmlFor="gender">
-            Gender
-            <Required />
-          </label>
-          <select
-            id="gender"
-            value={gender}
-            onChange={(e) => setGender(e.target.value)}
-            className={errors.gender ? "has-error" : ""}
-          >
-            <option value="">Choose...</option>
-            <option value="Female">Female</option>
-            <option value="Male">Male</option>
-            <option value="Other">Other</option>
-          </select>
+          <label>Gender</label>
+          <div className="choice-row">
+            {["Female", "Male", "Other"].map((g) => (
+              <button
+                key={g}
+                type="button"
+                className={gender === g ? "on" : ""}
+                onClick={() => setGender(g)}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
           {errors.gender && <p className="error">{errors.gender}</p>}
         </div>
-
-        <div className="field">
-          <label htmlFor="cotton">
-            Growing cotton this season?
-            <Required />
-          </label>
-          <select
-            id="cotton"
-            value={growingCotton}
-            onChange={(e) => {
-              setGrowingCotton(e.target.value);
-              setCotton(cottonAfterGrowingChange(e.target.value, cotton));
-            }}
-            className={errors.growing_cotton ? "has-error" : ""}
-          >
-            <option value="">Choose...</option>
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
-          </select>
-          {errors.growing_cotton && (
-            <p className="error">{errors.growing_cotton}</p>
-          )}
-        </div>
-
         <div className="field">
           <label htmlFor="mobile">Mobile number (optional)</label>
           <input
@@ -373,32 +462,54 @@ function RegisterFarmer({ lgId, lgCode, draft, onBack, onDone }) {
           />
           {errors.mobile && <p className="error">{errors.mobile}</p>}
         </div>
+        {messages}
+        {stepBar}
+      </div>
+    );
+  }
 
-        <LandFields
-          idPrefix="reg"
-          total={total}
-          setTotal={setTotal}
-          cotton={cotton}
-          setCotton={setCotton}
-          growingCotton={growingCotton}
-          water={water}
-          setWater={setWater}
-          errors={errors}
-        />
-
-        {errors.confirm_large && (
-          <p className="error">{errors.confirm_large}</p>
+  return (
+    <div className="fp-page">
+      {head("Add new farmer")}
+      {dots}
+      <h3 className="step-title">{STEP_TITLES[2]}</h3>
+      <div className="field">
+        <label>Growing cotton this season?</label>
+        <div className="choice-row">
+          {[
+            ["yes", "Yes"],
+            ["no", "No"],
+          ].map(([value, text]) => (
+            <button
+              key={value}
+              type="button"
+              className={growingCotton === value ? "on" : ""}
+              onClick={() => {
+                setGrowingCotton(value);
+                setCotton(cottonAfterGrowingChange(value, cotton));
+              }}
+            >
+              {text}
+            </button>
+          ))}
+        </div>
+        {errors.growing_cotton && (
+          <p className="error">{errors.growing_cotton}</p>
         )}
-        {errors.form && <p className="error">{errors.form}</p>}
-        {errors.summary && <p className="error">{errors.summary}</p>}
-
-        <button type="submit" disabled={busy}>
-          Review
-        </button>
-        <button type="button" onClick={handleSaveDraft} disabled={busy}>
-          Save draft
-        </button>
-      </form>
+      </div>
+      <LandFields
+        idPrefix="reg"
+        total={total}
+        setTotal={setTotal}
+        cotton={cotton}
+        setCotton={setCotton}
+        growingCotton={growingCotton}
+        water={water}
+        setWater={setWater}
+        errors={errors}
+      />
+      {messages}
+      {stepBar}
     </div>
   );
 }

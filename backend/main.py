@@ -261,6 +261,8 @@ def list_lgs(user: dict = Depends(current_user)):
         SELECT
             learning_groups.id,
             learning_groups.pu_id,
+            learning_groups.created_on,
+            learning_groups.dropped_on,
             pus.name AS pu_name,
             pus.code || '-' || printf('%03d', learning_groups.lg_number)
                 AS lg_code,
@@ -305,7 +307,6 @@ def list_lgs(user: dict = Depends(current_user)):
             ON facilitators.id = assignments.ff_id
         WHERE ((? = 'pu_manager' AND learning_groups.pu_id = ?)
            OR (? = 'facilitator' AND assignments.ff_id = ?))
-        AND learning_groups.dropped_on IS NULL
         ORDER BY pus.code, learning_groups.lg_number
     """, cohort_values + continued_values + dropped_values
         + continued_values + dropped_values + new_values
@@ -313,10 +314,15 @@ def list_lgs(user: dict = Depends(current_user)):
         + [user["role"], user["pu_id"], user["role"], user["ff_id"]]).fetchall()
     deletable = deletable_lg_ids(connection)
     connection.close()
+    start = season_start(date.today()).isoformat()
     result = []
     for row in rows:
         lg = dict(row)
         lg["can_delete"] = lg["id"] in deletable
+        # Made this season (no farmers from last year), so it is flagged as
+        # new. A dropped group is still listed, so its farmers can be seen
+        # under "Dropped out" in last year's view.
+        lg["is_new"] = bool(lg["created_on"] and lg["created_on"] >= start)
         result.append(lg)
     return result
 
@@ -1569,6 +1575,12 @@ def edit_farmer(
 
     connection = sqlite3.connect("field.db")
     require_farmer(connection, user, farmer_id, True)
+    # A farmer of a dropped learning group cannot be changed or continued.
+    group = connection.execute(
+        "SELECT lg_id FROM farmers WHERE id = ?", (farmer_id,)
+    ).fetchone()
+    if group is not None:
+        require_active_lg(connection, group[0], True)
     old = connection.execute(
         "SELECT name, gender, growing_cotton, mobile, total_landholding, "
         "area_under_cotton, water_regime, participation, first_name, "
