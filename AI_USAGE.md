@@ -8,14 +8,10 @@ I used **Claude** (Claude Code and the Claude app) throughout: scoping, React an
 
 ## Example prompts
 
-1. *"I am thinking of making the UI even more user friendly.  Currently there are 3 buttons to view last year's data completely. I think when they click on Farmer Data on the home screen, 'Last year' button should be selected by default. and in the list of farmers, it should show all the farmers from last year with appropriate tag (still to update, continued or dropped out). The 3 buttons on the top should still work to filter by them. 
+1. *"I am thinking of making the UI even more user friendly.  Currently there are 3 buttons to view last year's data completely. I think when they click on Farmer Data on the home screen, 'Last year' button should be selected by default. and in the list of farmers, it should show all the farmers from last year with appropriate tag (still to update, continued or dropped out). The 3 buttons on the top should still work to filter by them. There should be more informatio below the LG Code - number of farmers dropped out, continued, still to udpate. This should match the formatting from the top. For this year's farmers, it should directly open 'All this year' with again appropriate flags for each farmer and proper numbers for each LG (continued and newly added). Create a mock up for this. Create more mock ups if you can think of even easier options"* 
 
-There should be more informatio below the LG Code - number of farmers dropped out, continued, still to udpate. This should match the formatting from the top. 
-
-For this year's farmers, it should directly open 'All this year' with again appropriate flags for each farmer and proper numbers for each LG (continued and newly added). 
-
-Create a mock up for this. Create more mock ups if you can think of even easier options"* 
 2. *"Can't we save everything on the phone first regardless of internet? and then send it to the server only when there is internet? ... what do you think?"* I asked for an opinion first. The AI read the sync code and found most of it already existed.
+
 3. *"Same screen should show up for all types of farmers... still to update farmer should never be allowed directly mark as all details correct."* A rule from my field experience, turned into mock-ups, then code.
 
 ## Where the AI got things wrong, and the fix
